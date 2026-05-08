@@ -53,6 +53,26 @@ helm install bindery charts/bindery \
 
 See [`charts/bindery/values.yaml`](../charts/bindery/values.yaml) for all configuration options.
 
+## Unraid (Community Applications)
+
+Bindery ships a Community Applications template at
+[`.github/unraid/bindery.xml`](../.github/unraid/bindery.xml). Once the
+template is registered with the CA feed, Unraid users can install Bindery
+from the **Apps** tab. Until then, paste the raw URL into Apps → "Click
+here to add a missing application":
+
+```
+https://raw.githubusercontent.com/vavallee/bindery/main/.github/unraid/bindery.xml
+```
+
+Defaults the template provides: bridge networking, port `8787`,
+`--user 99:100` (Unraid's `nobody:users`), and four mounts —
+`/mnt/user/appdata/bindery → /config`, `/mnt/user/Books → /books`,
+`/mnt/user/Audiobooks → /audiobooks` (optional), and
+`/mnt/user/downloads/bindery → /downloads`. If you change `BINDERY_PUID`
+or `BINDERY_PGID`, also change the matching half of `--user` in **Extra
+Parameters** — the container fail-fast-validates the pair on startup.
+
 ## Binary
 
 Pre-built archives are attached to every [Release](https://github.com/vavallee/bindery/releases) for:
