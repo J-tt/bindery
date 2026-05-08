@@ -1,9 +1,13 @@
-const BASE = '/api/v1'
+// Path prefix injected by the backend at serve time (empty for root-mounted
+// deploys). Read once at module load so all API calls and redirects use a
+// consistent value throughout the session.
+const BINDERY_BASE: string = (window as unknown as { __BINDERY_BASE__?: string }).__BINDERY_BASE__ ?? ''
+const BASE = `${BINDERY_BASE}/api/v1`
 
 // Pages that render before the user is authenticated — reaching /auth/status
 // will 401 in enabled mode before setup, which is expected, and we must not
 // try to redirect to /login from the login/setup pages themselves.
-const PUBLIC_PATHS = new Set(['/login', '/setup'])
+const PUBLIC_PATHS = new Set([`${BINDERY_BASE}/login`, `${BINDERY_BASE}/setup`])
 
 // CSRF double-submit token, fetched once on init and refreshed after login.
 let csrfToken = ''
@@ -53,7 +57,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
   if (res.status === 401 && !PUBLIC_PATHS.has(window.location.pathname)) {
     // Session expired or missing — punt to login. The router there will
     // bounce to /setup if no user exists yet.
-    window.location.href = '/login'
+    window.location.href = `${BINDERY_BASE}/login`
     throw new Error('unauthorized')
   }
   if (!res.ok) {

@@ -13,7 +13,11 @@ export default defineConfig({
   build: {
     outDir: 'dist',
     emptyOutDir: true,
+    // Relative asset URLs (./assets/…) let the backend inject a <base> tag at
+    // serve time, making prefix-mounted deploys work without a per-path rebuild.
+    assetsDir: 'assets',
   },
+  base: './',
   test: {
     environment: 'jsdom',
     globals: true,

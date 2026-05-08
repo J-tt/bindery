@@ -84,6 +84,15 @@ func (c *Config) Validate(logger *slog.Logger) error {
 		}
 	}
 
+	// BINDERY_URL_BASE must be a clean path prefix after normalisation.
+	if c.URLBase != "" {
+		if strings.Contains(c.URLBase, "://") {
+			return fmt.Errorf("BINDERY_URL_BASE: value must be a path prefix (e.g. /bindery), not a full URL %q", c.URLBase)
+		}
+		logger.Info("config: BINDERY_URL_BASE set — app will be served under path prefix",
+			"urlBase", c.URLBase)
+	}
+
 	// --- Download path remap sanity check (warn) ---
 
 	if c.DownloadPathRemap != "" {

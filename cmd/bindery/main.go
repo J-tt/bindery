@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io/fs"
 	"log/slog"
 	"net"
@@ -783,25 +784,62 @@ func main() {
 		slog.Error("failed to load embedded frontend", "error", err)
 		os.Exit(1)
 	}
+
+	// Build the index.html payload once at startup. The backend injects two
+	// things before </head>:
+	//   1. <base href="<URLBase>/"> so that Vite's relative asset URLs
+	//      (./assets/…) resolve correctly regardless of which SPA route the
+	//      browser navigates to directly.
+	//   2. window.__BINDERY_BASE__ so the frontend can set BrowserRouter
+	//      basename and prefix API calls without a per-deployment build.
+	rawIndex, err := fs.ReadFile(distFS, "index.html")
+	if err != nil {
+		slog.Error("failed to read embedded index.html", "error", err)
+		os.Exit(1)
+	}
+	baseHref := cfg.URLBase + "/"
+	baseJSON, _ := json.Marshal(cfg.URLBase)
+	injection := fmt.Sprintf(`<script>window.__BINDERY_BASE__=%s</script><base href="%s">`, baseJSON, baseHref)
+	indexHTML := []byte(strings.Replace(string(rawIndex), "</head>", injection+"</head>", 1))
+
 	fileServer := http.FileServer(http.FS(distFS))
 	r.Get("/*", func(w http.ResponseWriter, r *http.Request) {
 		path := r.URL.Path[1:]
-		if path == "" {
-			path = "index.html"
+		if path == "" || path == "index.html" {
+			w.Header().Set("Content-Type", "text/html; charset=utf-8")
+			w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+			_, _ = w.Write(indexHTML)
+			return
 		}
 		if _, err := fs.Stat(distFS, path); err == nil {
 			fileServer.ServeHTTP(w, r)
 			return
 		}
-		r.URL.Path = "/"
-		fileServer.ServeHTTP(w, r)
+		// SPA fallback — unknown paths render the app shell.
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+		_, _ = w.Write(indexHTML)
 	})
+
+	// If BINDERY_URL_BASE is set, mount the entire router under that prefix.
+	// chi.Mount strips the prefix before dispatching so all inner routes and
+	// the SPA handler continue to work unchanged against un-prefixed paths.
+	var handler http.Handler = r
+	if cfg.URLBase != "" {
+		outer := chi.NewRouter()
+		// Redirect bare prefix (no trailing slash) to prefix/ so the SPA
+		// bootstrap and asset resolution work correctly.
+		outer.Get(cfg.URLBase, http.RedirectHandler(cfg.URLBase+"/", http.StatusMovedPermanently).ServeHTTP)
+		outer.Mount(cfg.URLBase, r)
+		handler = outer
+		slog.Info("serving under path prefix", "urlBase", cfg.URLBase)
+	}
 
 	addr := ":" + cfg.Port
 	slog.Info("listening", "addr", addr)
 	srv := &http.Server{
 		Addr:              addr,
-		Handler:           r,
+		Handler:           handler,
 		ReadHeaderTimeout: 10 * time.Second,
 		ReadTimeout:       30 * time.Second,
 		WriteTimeout:      120 * time.Second,

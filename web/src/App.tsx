@@ -272,9 +272,14 @@ function Shell() {
   )
 }
 
+// Read the path prefix injected by the backend at serve time. Empty string
+// means the app is mounted at the root (default / existing behaviour).
+const binderyBase: string =
+  (window as unknown as { __BINDERY_BASE__?: string }).__BINDERY_BASE__ ?? ''
+
 function App() {
   return (
-    <BrowserRouter>
+    <BrowserRouter basename={binderyBase}>
       <AuthProvider>
         <Routes>
           <Route

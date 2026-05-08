@@ -36,6 +36,11 @@ type Config struct {
 	// BINDERY_RATE_LIMIT_WINDOW_MINUTES (default: 15)
 	RateLimitMaxFailures   int
 	RateLimitWindowMinutes int
+	// URLBase is an optional path prefix under which the entire app is served
+	// (e.g. "/bindery"). Default "" mounts at the root. Set via
+	// BINDERY_URL_BASE. Automatically normalised: leading slash added, trailing
+	// slash removed, full URLs truncated to their path component.
+	URLBase string
 }
 
 // Load reads configuration from environment variables with sensible defaults.
@@ -69,7 +74,34 @@ func Load() *Config {
 		LogRetentionDays:       envInt("BINDERY_LOG_RETENTION_DAYS", 14),
 		RateLimitMaxFailures:   envInt("BINDERY_RATE_LIMIT_MAX_FAILURES", 5),
 		RateLimitWindowMinutes: envInt("BINDERY_RATE_LIMIT_WINDOW_MINUTES", 15),
+		URLBase:                normalizeURLBase(envOr("BINDERY_URL_BASE", "")),
 	}
+}
+
+// normalizeURLBase ensures the prefix always starts with "/" and never ends
+// with one. Full URLs are reduced to their path component so that copy-paste
+// of a full origin URL (e.g. "https://example.com/bindery") still works.
+// Returns "" for an empty or root-only value so callers can use a simple
+// `if cfg.URLBase != ""` check.
+func normalizeURLBase(raw string) string {
+	s := strings.TrimSpace(raw)
+	// Drop scheme + host if someone passed a full URL.
+	if i := strings.Index(s, "://"); i >= 0 {
+		rest := s[i+3:]
+		if j := strings.Index(rest, "/"); j >= 0 {
+			s = rest[j:]
+		} else {
+			s = ""
+		}
+	}
+	s = strings.TrimRight(s, "/")
+	if s == "" || s == "/" {
+		return ""
+	}
+	if !strings.HasPrefix(s, "/") {
+		s = "/" + s
+	}
+	return s
 }
 
 // defaultDBPath resolves the platform-appropriate SQLite path. Linux keeps the
