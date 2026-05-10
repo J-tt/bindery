@@ -495,13 +495,14 @@ func (i *Importer) importOne(ctx context.Context, cfg ImportConfig, runID int64,
 	stats.MetadataConflicts += bookMeta.Conflicts
 	stats.MetadataAutoResolved += bookMeta.AutoResolved
 	result.BookID = bookResult.row.ID
-	if created {
+	switch {
+	case created:
 		stats.BooksCreated++
 		result.Outcome = itemOutcomeCreated
-	} else if linked {
+	case linked:
 		stats.BooksLinked++
 		result.Outcome = itemOutcomeLinked
-	} else {
+	default:
 		stats.BooksUpdated++
 		result.Outcome = itemOutcomeUpdated
 	}
@@ -639,11 +640,11 @@ func (i *Importer) queueReviewItem(ctx context.Context, runID int64, cfg ImportC
 	return i.reviews.UpsertPending(ctx, review)
 }
 
-func (i *Importer) recordRunEntity(ctx context.Context, runID int64, cfg ImportConfig, libraryID, itemID, entityType, externalID string, localID int64, outcome string, metadata any) error {
+func (i *Importer) recordRunEntity(ctx context.Context, runID int64, cfg ImportConfig, libraryID, itemID, entityType, externalID string, localID int64, outcome string, extraData any) error {
 	if runID == 0 || i.runEntities == nil {
 		return nil
 	}
-	metadataJSON, err := encodeJSON(metadata)
+	metadataJSON, err := encodeJSON(extraData)
 	if err != nil {
 		err = fmt.Errorf("encode abs import run entity metadata: %w", err)
 		slog.Warn("abs import: encode run entity metadata failed",

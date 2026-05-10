@@ -1,6 +1,7 @@
 package importer
 
 import (
+	"bytes"
 	"context"
 	"os"
 	"path/filepath"
@@ -63,7 +64,7 @@ func TestCopyFileMode(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read dst: %v", err)
 	}
-	if string(got) != string(content) {
+	if !bytes.Equal(got, content) {
 		t.Errorf("dst content = %q, want %q", got, content)
 	}
 
@@ -159,7 +160,7 @@ func TestCopyDirMode(t *testing.T) {
 // to "move" mode.
 func TestImportMode_Default(t *testing.T) {
 	s := &Scanner{}
-	if got := s.importMode(nil); got != "move" { //nolint:staticcheck
+	if got := s.importMode(nil); got != "move" { //nolint:staticcheck // SA1019: ImportMode field deprecated but still exercised here
 		t.Errorf("importMode without settings = %q, want %q", got, "move")
 	}
 }

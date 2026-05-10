@@ -63,7 +63,7 @@ func TestRenamerSanitizesPath(t *testing.T) {
 }
 
 func contains(s, substr string) bool {
-	return len(s) > 0 && len(substr) > 0 && filepath.Base(s) != "" && stringContains(s, substr)
+	return s != "" && substr != "" && filepath.Base(s) != "" && stringContains(s, substr)
 }
 
 func stringContains(s, sub string) bool {
@@ -162,7 +162,7 @@ func TestMoveFile(t *testing.T) {
 	// Create temp source file
 	tmpDir := t.TempDir()
 	srcPath := filepath.Join(tmpDir, "source.epub")
-	if err := os.WriteFile(srcPath, []byte("test content"), 0644); err != nil {
+	if err := os.WriteFile(srcPath, []byte("test content"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
@@ -198,7 +198,7 @@ func TestUniqueDir(t *testing.T) {
 	}
 
 	// Occupy the target; next call should append " (2)".
-	if err := os.MkdirAll(target, 0755); err != nil {
+	if err := os.MkdirAll(target, 0o755); err != nil {
 		t.Fatal(err)
 	}
 	want := target + " (2)"
@@ -207,7 +207,7 @@ func TestUniqueDir(t *testing.T) {
 	}
 
 	// Occupy "(2)" too — next call should pick " (3)".
-	if err := os.MkdirAll(want, 0755); err != nil {
+	if err := os.MkdirAll(want, 0o755); err != nil {
 		t.Fatal(err)
 	}
 	want = target + " (3)"

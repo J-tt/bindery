@@ -14,6 +14,7 @@ linters:
     - noctx
     - sqlclosecheck
     - revive
+    - gocritic
     - rowserrcheck
   settings:
     staticcheck:
@@ -23,6 +24,23 @@ linters:
         # Enforce no-unused-parameter style but not every-exported-symbol comments.
         - name: var-naming
         - name: early-return
+    gocritic:
+      enabled-tags:
+        - diagnostic
+        - style
+        - performance
+      disabled-checks:
+        # appendAssign fires on idiomatic slice-building patterns.
+        - appendAssign
+        # hugeParam fires on every large struct pass — most are intentional copies.
+        - hugeParam
+        # rangeValCopy fires on loops over modest structs in non-hot paths.
+        - rangeValCopy
+        # unnamedResult — naming bool+string return pairs adds noise, not clarity.
+        - unnamedResult
+        # filepathJoin false-positives on filepath.Join("/absolute/path", ...) which
+        # is perfectly valid Go — commonly used in tests with well-known root paths.
+        - filepathJoin
     misspell:
       # "portugues" is a legitimate Portuguese release-name marker; "russe"
       # is the French word for Russian (both used as foreign-tag markers).
@@ -71,6 +89,16 @@ linters:
           - gosec
           - noctx
           - unused
+      # httpNoBody: nil body is idiomatic and widespread in test code.
+      - path: _test\.go
+        linters:
+          - gocritic
+        text: "httpNoBody:"
+      # tooManyResultsChecker: fixture helpers intentionally return many repos.
+      - path: _test\.go
+        linters:
+          - gocritic
+        text: "tooManyResultsChecker:"
       # CORS middleware writes OPTIONS response headers and can't meaningfully
       # propagate a Write error.
       - path: cmd/bindery/main\.go

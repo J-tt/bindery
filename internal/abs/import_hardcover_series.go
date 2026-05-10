@@ -319,7 +319,7 @@ func (i *Importer) upsertHardcoverSeries(ctx context.Context, cfg ImportConfig, 
 			return seriesUpsertResult{}, err
 		}
 	}
-	metadata := map[string]any{
+	runMeta := map[string]any{
 		"bookId":          bookID,
 		"sequence":        strings.TrimSpace(matchedBook.Position),
 		"matchedBy":       "hardcover_series",
@@ -333,7 +333,7 @@ func (i *Importer) upsertHardcoverSeries(ctx context.Context, cfg ImportConfig, 
 			if created {
 				outcome = itemOutcomeCreated
 			}
-			_ = i.recordRunEntity(ctx, runID, cfg, cfg.LibraryID, itemID, entityTypeSeries, membershipExternalID, localID, outcome, metadata)
+			_ = i.recordRunEntity(ctx, runID, cfg, cfg.LibraryID, itemID, entityTypeSeries, membershipExternalID, localID, outcome, runMeta)
 			if stats != nil {
 				stats.rememberDryRunSeriesMembership(countKey)
 			}
@@ -366,7 +366,7 @@ func (i *Importer) upsertHardcoverSeries(ctx context.Context, cfg ImportConfig, 
 		outcome = itemOutcomeCreated
 	}
 	if !cfg.DryRun && linkCreated {
-		_ = i.recordRunEntity(ctx, runID, cfg, cfg.LibraryID, itemID, entityTypeSeries, membershipExternalID, localID, outcome, metadata)
+		_ = i.recordRunEntity(ctx, runID, cfg, cfg.LibraryID, itemID, entityTypeSeries, membershipExternalID, localID, outcome, runMeta)
 	}
 	return seriesUpsertResult{
 		SeriesID:             localID,

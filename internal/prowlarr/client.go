@@ -102,7 +102,7 @@ func (c *Client) Test(ctx context.Context) (string, error) {
 }
 
 func (c *Client) get(ctx context.Context, path string) ([]byte, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+path, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+path, http.NoBody)
 	if err != nil {
 		return nil, fmt.Errorf("build request: %w", err)
 	}

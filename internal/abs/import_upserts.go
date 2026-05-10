@@ -393,7 +393,7 @@ func (i *Importer) enrichBook(ctx context.Context, cfg ImportConfig, item Normal
 	return i.mergeUpstreamBook(ctx, cfg, item, book, full, matchedBy)
 }
 
-func (i *Importer) mergeUpstreamBook(ctx context.Context, cfg ImportConfig, item NormalizedLibraryItem, book *models.Book, full *models.Book, matchedBy string) (metadataMergeResult, error) {
+func (i *Importer) mergeUpstreamBook(ctx context.Context, cfg ImportConfig, item NormalizedLibraryItem, book, full *models.Book, matchedBy string) (metadataMergeResult, error) {
 	if book == nil || full == nil {
 		return metadataMergeResult{}, nil
 	}
@@ -483,8 +483,8 @@ func (i *Importer) lookupUpstreamBook(ctx context.Context, author *models.Author
 		if match != nil {
 			return nil, "", true, nil
 		}
-		copy := works[idx]
-		match = &copy
+		cp := works[idx]
+		match = &cp
 	}
 	if match == nil {
 		return nil, "", false, nil
@@ -768,8 +768,8 @@ func (i *Importer) findBookByNormalizedTitle(ctx context.Context, authorID int64
 		if match != nil {
 			return nil, true, nil
 		}
-		copy := books[idx]
-		match = &copy
+		cp := books[idx]
+		match = &cp
 	}
 	return match, false, nil
 }
@@ -986,11 +986,12 @@ func seriesMembershipExternalID(seriesExternalID string, bookID int64, itemID st
 
 func seriesMembershipCountKey(seriesID int64, title, externalID string, bookID int64, itemID string) string {
 	bookKey := strings.TrimSpace(itemID)
-	if bookID > 0 {
+	switch {
+	case bookID > 0:
 		bookKey = fmt.Sprintf("book:%d", bookID)
-	} else if bookKey != "" {
+	case bookKey != "":
 		bookKey = "item:" + bookKey
-	} else {
+	default:
 		bookKey = "book:planned"
 	}
 	if seriesID > 0 {
@@ -1055,8 +1056,8 @@ func (i *Importer) findSeriesByTitle(ctx context.Context, title string) (*models
 		if match != nil {
 			return nil, true, nil
 		}
-		copy := all[idx]
-		match = &copy
+		cp := all[idx]
+		match = &cp
 	}
 	return match, false, nil
 }

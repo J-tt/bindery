@@ -41,7 +41,8 @@ func runMigrate(
 		res, err := migrate.ImportCSVAuthors(ctx, f, authors, agg, nil)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "csv import:", err)
-			os.Exit(1)
+			_ = f.Close()
+			os.Exit(1) //nolint:gocritic // exitAfterDefer: file already closed above
 		}
 		printJSON(res)
 

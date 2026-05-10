@@ -339,9 +339,8 @@ func (i *Importer) findAuthorByName(ctx context.Context, name string) (*models.A
 	if err != nil {
 		return nil, err
 	}
-	lower := strings.ToLower(name)
 	for idx := range all {
-		if strings.ToLower(all[idx].Name) == lower {
+		if strings.EqualFold(all[idx].Name, name) {
 			return &all[idx], nil
 		}
 	}

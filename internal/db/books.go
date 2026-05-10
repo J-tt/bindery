@@ -257,11 +257,12 @@ func (r *BookRepo) refreshBookStatus(ctx context.Context, bookID int64) error {
 	}
 
 	// Keep legacy file_path column in sync with the first available file path.
-	if ebookPath != "" {
+	switch {
+	case ebookPath != "":
 		b.FilePath = ebookPath
-	} else if audiobookPath != "" {
+	case audiobookPath != "":
 		b.FilePath = audiobookPath
-	} else {
+	default:
 		b.FilePath = ""
 	}
 

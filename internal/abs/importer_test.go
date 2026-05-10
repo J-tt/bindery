@@ -15,7 +15,7 @@ import (
 	"github.com/vavallee/bindery/internal/models"
 )
 
-func newABSImporterFixture(t *testing.T) (*Importer, *db.AuthorRepo, *db.BookRepo, *db.SeriesRepo, *db.EditionRepo, *db.ABSProvenanceRepo, *db.ABSImportRunRepo, *db.ABSImportRunEntityRepo, *db.ABSReviewItemRepo, *db.ABSMetadataConflictRepo) {
+func newABSImporterFixture(t *testing.T) (*Importer, *db.AuthorRepo, *db.BookRepo, *db.SeriesRepo, *db.EditionRepo, *db.ABSProvenanceRepo, *db.ABSImportRunRepo, *db.ABSImportRunEntityRepo, *db.ABSReviewItemRepo, *db.ABSMetadataConflictRepo) { //nolint:gocritic // tooManyResultsChecker: test fixture intentionally returns all repos
 	t.Helper()
 	database, err := db.OpenMemory()
 	if err != nil {
@@ -222,7 +222,7 @@ func TestImporter_ResumeInterruptedStartsFromPersistedCheckpoint(t *testing.T) {
 			t.Errorf("libraryID = %q, want lib-books", libraryID)
 		}
 		staleRun, err := runRepo.GetByID(ctx, run.ID)
-		if err != nil {
+		if err != nil { //nolint:gocritic // ifElseChain: test uses else-if for sequential error checks
 			t.Errorf("GetByID stale run at start: %v", err)
 			statusAtStart <- ""
 		} else if staleRun == nil {
@@ -3501,7 +3501,7 @@ func TestImporter_RollbackSkipsSnapshotWhenProvenanceLocalChanged(t *testing.T) 
 		MetadataProvider: providerAudiobookshelf,
 	}
 	after := authorSnapshot(stale)
-	metadata, err := authorSnapshotMetadata(nil, before, after)
+	snapMeta, err := authorSnapshotMetadata(nil, before, after)
 	if err != nil {
 		t.Fatalf("authorSnapshotMetadata: %v", err)
 	}
@@ -3514,7 +3514,7 @@ func TestImporter_RollbackSkipsSnapshotWhenProvenanceLocalChanged(t *testing.T) 
 		ExternalID:   "author-shared",
 		LocalID:      stale.ID,
 		Outcome:      itemOutcomeLinked,
-		MetadataJSON: mustJSONForTest(t, metadata),
+		MetadataJSON: mustJSONForTest(t, snapMeta),
 	}); err != nil {
 		t.Fatalf("Record run entity: %v", err)
 	}

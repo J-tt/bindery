@@ -145,7 +145,8 @@ func main() {
 	ctxBoot := context.Background()
 	if err := bootstrapAuth(ctxBoot, settingsRepo, cfg.APIKey); err != nil {
 		slog.Error("auth bootstrap failed", "error", err)
-		os.Exit(1)
+		_ = database.Close()
+		os.Exit(1) //nolint:gocritic // exitAfterDefer: database already closed above
 	}
 
 	// Parse trusted-proxy CIDRs once at startup (shared by trustedProxyMiddleware
@@ -827,7 +828,7 @@ func main() {
 	}
 	baseHref := cfg.URLBase + "/"
 	baseJSON, _ := json.Marshal(cfg.URLBase)
-	injection := fmt.Sprintf(`<script>window.__BINDERY_BASE__=%s</script><base href="%s">`, baseJSON, baseHref)
+	injection := fmt.Sprintf(`<script>window.__BINDERY_BASE__=%s</script><base href="%s">`, baseJSON, baseHref) //nolint:gocritic // sprintfQuotedString: baseJSON is already JSON-encoded, %q would double-quote it
 	indexHTML := []byte(strings.Replace(string(rawIndex), "</head>", injection+"</head>", 1))
 
 	fileServer := http.FileServer(http.FS(distFS))

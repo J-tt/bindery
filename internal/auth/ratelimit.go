@@ -16,10 +16,10 @@ type LoginLimiter struct {
 	window time.Duration
 }
 
-// NewLoginLimiter returns a limiter allowing `max` failed attempts per `window`.
+// NewLoginLimiter returns a limiter allowing `maxFailures` failed attempts per `window`.
 // Sonarr-ish defaults: 5 per 15 min.
-func NewLoginLimiter(max int, window time.Duration) *LoginLimiter {
-	return &LoginLimiter{events: make(map[string][]time.Time), max: max, window: window}
+func NewLoginLimiter(maxFailures int, window time.Duration) *LoginLimiter {
+	return &LoginLimiter{events: make(map[string][]time.Time), max: maxFailures, window: window}
 }
 
 // Allow returns true if the caller may attempt another login. Record a failure

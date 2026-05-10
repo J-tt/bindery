@@ -276,7 +276,7 @@ func (s *Scanner) failImport(ctx context.Context, dl *models.Download, status mo
 	})
 }
 
-func (s *Scanner) createHistoryEvent(ctx context.Context, eventType string, sourceTitle string, bookID *int64, data map[string]string) {
+func (s *Scanner) createHistoryEvent(ctx context.Context, eventType, sourceTitle string, bookID *int64, data map[string]string) {
 	if s.history == nil {
 		return
 	}

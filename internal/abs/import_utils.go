@@ -213,16 +213,16 @@ func cloneInt64Ptr(value *int64) *int64 {
 	if value == nil {
 		return nil
 	}
-	copy := *value
-	return &copy
+	v := *value
+	return &v
 }
 
 func cloneTimePtr(value *time.Time) *time.Time {
 	if value == nil {
 		return nil
 	}
-	copy := value.UTC()
-	return &copy
+	v := value.UTC()
+	return &v
 }
 
 func isbn13Ptr(raw string) *string {

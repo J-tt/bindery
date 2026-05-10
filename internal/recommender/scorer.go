@@ -60,7 +60,7 @@ func genreScore(c models.RecommendationCandidate, p *UserProfile) float64 {
 		if g == "" {
 			continue
 		}
-		candMag += 1.0 // binary: 1^2 = 1
+		candMag += 1.0 // genre vector component is always 1 (binary presence)
 		if w, ok := p.GenreWeights[g]; ok {
 			dotProduct += w // w * 1
 		}

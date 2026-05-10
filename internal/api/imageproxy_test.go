@@ -253,15 +253,16 @@ func TestProxyBookImages(t *testing.T) {
 	for _, tc := range cases {
 		b := &models.Book{ImageURL: tc.in}
 		proxyBookImages(b)
-		if tc.want == "" {
+		switch {
+		case tc.want == "":
 			if b.ImageURL != "" {
 				t.Errorf("in=%q: want empty, got %q", tc.in, b.ImageURL)
 			}
-		} else if strings.HasPrefix(tc.want, "/api") {
+		case strings.HasPrefix(tc.want, "/api"):
 			if !strings.HasPrefix(b.ImageURL, tc.want) {
 				t.Errorf("in=%q: want prefix %q, got %q", tc.in, tc.want, b.ImageURL)
 			}
-		} else {
+		default:
 			if b.ImageURL != tc.want {
 				t.Errorf("in=%q: want %q, got %q", tc.in, tc.want, b.ImageURL)
 			}

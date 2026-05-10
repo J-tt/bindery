@@ -105,7 +105,8 @@ func main() {
 		last_seen   DATETIME NOT NULL
 	)`); err != nil {
 		slog.Error("migrate db", "error", err)
-		os.Exit(1)
+		_ = db.Close()
+		os.Exit(1) //nolint:gocritic // exitAfterDefer: db already closed above
 	}
 
 	// Strip a leading "v" from any pre-existing version starting with "v<digit>",
@@ -186,7 +187,7 @@ func secureHeaders(host string, next http.Handler) http.Handler {
 			if target == "" {
 				target = r.Host
 			}
-			http.Redirect(w, r, "https://"+target+r.RequestURI, http.StatusMovedPermanently)
+			http.Redirect(w, r, "https://"+target+r.RequestURI, http.StatusMovedPermanently) //nolint:gosec // G710: redirects to same host, just switching to HTTPS
 			return
 		}
 		w.Header().Set("Strict-Transport-Security", "max-age=63072000; includeSubDomains")
@@ -586,10 +587,10 @@ func renderBarChart(buckets []statsBucket, maxBars int) string {
 		head = append(head, statsBucket{Label: "(other)", Count: tail})
 		buckets = head
 	}
-	max := buckets[0].Count
+	maxCount := buckets[0].Count
 	for _, b := range buckets {
-		if b.Count > max {
-			max = b.Count
+		if b.Count > maxCount {
+			maxCount = b.Count
 		}
 	}
 
@@ -599,8 +600,8 @@ func renderBarChart(buckets []statsBucket, maxBars int) string {
 	for i, b := range buckets {
 		colour := paletteColor(i)
 		pct := 0
-		if max > 0 {
-			pct = b.Count * 100 / max
+		if maxCount > 0 {
+			pct = b.Count * 100 / maxCount
 		}
 		fmt.Fprintf(&sb,
 			`<tr><td class="legend-cell"><span class="swatch" style="background:%s"></span>%s</td>`+
@@ -617,10 +618,10 @@ func renderSparkline(daily []dailyBucket) string {
 	if len(daily) == 0 {
 		return `<p class="empty">No data yet.</p>`
 	}
-	max := 0
+	maxCount := 0
 	for _, d := range daily {
-		if d.Count > max {
-			max = d.Count
+		if d.Count > maxCount {
+			maxCount = d.Count
 		}
 	}
 	const w, h, gap = 600, 80, 2
@@ -633,8 +634,8 @@ func renderSparkline(daily []dailyBucket) string {
 	fmt.Fprintf(&sb, `<svg class="sparkline" viewBox="0 0 %d %d" preserveAspectRatio="none" role="img" aria-label="Daily active installs over the last 30 days">`, w, h)
 	for i, d := range daily {
 		barH := 0
-		if max > 0 {
-			barH = d.Count * h / max
+		if maxCount > 0 {
+			barH = d.Count * h / maxCount
 		}
 		if barH < 1 && d.Count > 0 {
 			barH = 1
@@ -869,11 +870,4 @@ func env(key, fallback string) string {
 		return v
 	}
 	return fallback
-}
-
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }

@@ -176,7 +176,7 @@ func (c *Client) sruQuery(ctx context.Context, cql string, maxRecords int) ([]ma
 	}
 	endpoint := sruBase + "?" + params.Encode()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, http.NoBody)
 	if err != nil {
 		return nil, err
 	}

@@ -140,7 +140,7 @@ func (c *Client) volumeToBook(item volumeItem) models.Book {
 }
 
 func (c *Client) getJSON(ctx context.Context, rawURL string, target interface{}) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, http.NoBody)
 	if err != nil {
 		return err
 	}

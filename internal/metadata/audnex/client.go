@@ -65,7 +65,7 @@ func (c *Client) GetBook(ctx context.Context, asin string) (*Book, error) {
 		return nil, fmt.Errorf("asin required")
 	}
 	u := fmt.Sprintf("%s/books/%s?region=%s", c.baseURL, url.PathEscape(asin), url.QueryEscape(c.region))
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, http.NoBody)
 	if err != nil {
 		return nil, err
 	}

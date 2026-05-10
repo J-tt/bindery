@@ -108,7 +108,7 @@ func (c *Client) SearchBooksByAuthor(ctx context.Context, author string) ([]mode
 	}
 	endpoint := c.baseURL + "/1.0/catalog/products?" + params.Encode()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, endpoint, http.NoBody)
 	if err != nil {
 		return nil, err
 	}

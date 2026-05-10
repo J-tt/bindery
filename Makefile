@@ -28,11 +28,11 @@ test-web: ## Run frontend tests
 	cd web && npm test -- --coverage
 
 lint: ## Run linters
-	golangci-lint run ./...
+	go tool golangci-lint run ./...
 	cd web && npm run lint
 
 lint-go: ## Run Go linter only
-	golangci-lint run ./...
+	go tool golangci-lint run ./...
 
 lint-web: ## Run frontend linter only
 	cd web && npm run lint

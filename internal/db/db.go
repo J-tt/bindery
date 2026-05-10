@@ -256,7 +256,7 @@ func multiuserPreFlight(database *sql.DB) error {
 	for _, tbl := range tables {
 		var n int
 		//nolint:gosec // table name is a static literal from the slice above
-		if err := database.QueryRow("SELECT COUNT(*) FROM " + tbl).Scan(&n); err != nil { //nolint:gosec
+		if err := database.QueryRow("SELECT COUNT(*) FROM " + tbl).Scan(&n); err != nil { //nolint:gosec // G201: tbl is a static literal from the slice above, not user input
 			return fmt.Errorf("pre-flight: count %s: %w", tbl, err)
 		}
 		if n > 0 {

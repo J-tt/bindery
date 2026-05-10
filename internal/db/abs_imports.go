@@ -730,7 +730,7 @@ type absProvenanceScanner interface {
 	Scan(dest ...any) error
 }
 
-func scanABSProvenance(scanner absProvenanceScanner, context string) (*models.ABSProvenance, error) {
+func scanABSProvenance(scanner absProvenanceScanner, caller string) (*models.ABSProvenance, error) {
 	var (
 		item        models.ABSProvenance
 		fileIDsJSON string
@@ -739,11 +739,11 @@ func scanABSProvenance(scanner absProvenanceScanner, context string) (*models.AB
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("%s: %w", context, err)
+		return nil, fmt.Errorf("%s: %w", caller, err)
 	}
 	if fileIDsJSON != "" {
 		if err := json.Unmarshal([]byte(fileIDsJSON), &item.FileIDs); err != nil {
-			return nil, fmt.Errorf("%s decode file ids: %w", context, err)
+			return nil, fmt.Errorf("%s decode file ids: %w", caller, err)
 		}
 	}
 	return &item, nil

@@ -5,6 +5,7 @@
 package oidc
 
 import (
+	"bytes"
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
@@ -407,7 +408,7 @@ func EncodeFlowState(state, nonce, codeVerifier, redirectBase string) (string, e
 func configEqual(a, b ProviderConfig) bool {
 	aj, _ := json.Marshal(a) // #nosec G117 -- persisted server-side only, never returned via API (see ProviderPublicConfig split)
 	bj, _ := json.Marshal(b) // #nosec G117 -- persisted server-side only, never returned via API (see ProviderPublicConfig split)
-	return string(aj) == string(bj)
+	return bytes.Equal(aj, bj)
 }
 
 func encodeFlowStateRaw(fs flowState) (string, error) {

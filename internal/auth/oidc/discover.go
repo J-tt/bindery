@@ -53,7 +53,7 @@ func Discover(ctx context.Context, issuer string) (*DiscoveryDoc, error) {
 	}
 
 	wellKnown := issuer + "/.well-known/openid-configuration"
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, wellKnown, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, wellKnown, http.NoBody)
 	if err != nil {
 		return nil, fmt.Errorf("build request: %w", err)
 	}

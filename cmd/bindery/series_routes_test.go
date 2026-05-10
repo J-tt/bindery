@@ -98,7 +98,7 @@ func TestSeriesMutationRoutesRequireAdmin(t *testing.T) {
 			router := chi.NewRouter()
 			registerSeriesRoutes(router, handler)
 
-			req := httptest.NewRequest(tt.method, tt.path, nil)
+			req := httptest.NewRequest(tt.method, tt.path, nil) //nolint:gocritic // httpNoBody: nil is idiomatic for httptest.NewRequest with no body
 			req = req.WithContext(auth.WithUserRole(req.Context(), "user"))
 			rec := httptest.NewRecorder()
 			router.ServeHTTP(rec, req)
@@ -137,7 +137,7 @@ func TestSeriesMutationRoutesAllowAdmin(t *testing.T) {
 			router := chi.NewRouter()
 			registerSeriesRoutes(router, handler)
 
-			req := httptest.NewRequest(tt.method, tt.path, nil)
+			req := httptest.NewRequest(tt.method, tt.path, nil) //nolint:gocritic // httpNoBody: nil is idiomatic for httptest.NewRequest with no body
 			req = req.WithContext(auth.WithUserRole(req.Context(), "admin"))
 			rec := httptest.NewRecorder()
 			router.ServeHTTP(rec, req)

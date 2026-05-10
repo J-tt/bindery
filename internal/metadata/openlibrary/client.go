@@ -588,7 +588,7 @@ func (c *Client) GetBookByISBN(ctx context.Context, isbn string) (*models.Book, 
 }
 
 func (c *Client) getJSON(ctx context.Context, rawURL string, target interface{}) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, http.NoBody)
 	if err != nil {
 		return err
 	}
@@ -652,12 +652,12 @@ func nilIfZero(n int) *int {
 	return &n
 }
 
-func truncateSlice(s []string, max int) []string {
+func truncateSlice(s []string, limit int) []string {
 	if s == nil {
 		return []string{}
 	}
-	if len(s) > max {
-		return s[:max]
+	if len(s) > limit {
+		return s[:limit]
 	}
 	return s
 }

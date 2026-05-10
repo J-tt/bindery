@@ -159,7 +159,7 @@ type absMetadataConflictScanner interface {
 	Scan(dest ...any) error
 }
 
-func scanABSMetadataConflict(scanner absMetadataConflictScanner, context string) (*models.ABSMetadataConflict, error) {
+func scanABSMetadataConflict(scanner absMetadataConflictScanner, caller string) (*models.ABSMetadataConflict, error) {
 	var item models.ABSMetadataConflict
 	if err := scanner.Scan(
 		&item.ID, &item.SourceID, &item.LibraryID, &item.ItemID, &item.EntityType, &item.LocalID, &item.FieldName,
@@ -169,7 +169,7 @@ func scanABSMetadataConflict(scanner absMetadataConflictScanner, context string)
 		if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
-		return nil, fmt.Errorf("%s: %w", context, err)
+		return nil, fmt.Errorf("%s: %w", caller, err)
 	}
 	return &item, nil
 }

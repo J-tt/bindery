@@ -327,7 +327,7 @@ func (c *Client) get(ctx context.Context, path string) ([]byte, error) {
 		return nil, err
 	}
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+path, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+path, http.NoBody)
 	if err != nil {
 		return nil, fmt.Errorf("build request: %w", err)
 	}
@@ -346,7 +346,7 @@ func (c *Client) get(ctx context.Context, path string) ([]byte, error) {
 		if err := c.Login(ctx); err != nil {
 			return nil, err
 		}
-		req2, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+path, nil)
+		req2, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+path, http.NoBody)
 		if err != nil {
 			return nil, fmt.Errorf("build retry request for %s: %w", path, err)
 		}

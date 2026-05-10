@@ -1,6 +1,7 @@
 package api
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"fmt"
 	"net/http"
@@ -399,7 +400,7 @@ func TestImageProxy_ConcurrentSameURL(t *testing.T) {
 				return
 			}
 			got := rr.Body.Bytes()
-			if len(got) != len(body) || string(got) != string(body) {
+			if !bytes.Equal(got, body) {
 				t.Errorf("body = %q, want %q (partial/torn read?)", got, body)
 			}
 		}()

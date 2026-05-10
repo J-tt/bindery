@@ -168,9 +168,8 @@ func (s LanguageFilterSpec) IsSatisfiedBy(r Release, _ models.Book) (bool, strin
 	if len(s.AllowedLangs) == 0 || r.Language == "" {
 		return true, ""
 	}
-	lang := strings.ToLower(r.Language)
 	for _, a := range s.AllowedLangs {
-		if strings.ToLower(a) == lang {
+		if strings.EqualFold(a, r.Language) {
 			return true, ""
 		}
 	}

@@ -308,16 +308,17 @@ func (h *IndexerHandler) SearchBook(w http.ResponseWriter, r *http.Request) {
 		results = append(ebookResults, audioResults...)
 		results = indexer.DedupeResults(results)
 		// Merge debug info from both searches.
-		if ebookDbg != nil && audioDbg != nil {
+		switch {
+		case ebookDbg != nil && audioDbg != nil:
 			merged := *ebookDbg
 			merged.Indexers = append(merged.Indexers, audioDbg.Indexers...)
 			merged.Filters = append(merged.Filters, audioDbg.Filters...)
 			merged.Pipeline.RawCount += audioDbg.Pipeline.RawCount
 			merged.DurationMs += audioDbg.DurationMs
 			dbg = &merged
-		} else if audioDbg != nil {
+		case audioDbg != nil:
 			dbg = audioDbg
-		} else {
+		default:
 			dbg = ebookDbg
 		}
 	} else {

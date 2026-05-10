@@ -196,7 +196,7 @@ func (h *AuthHandler) Login(w http.ResponseWriter, r *http.Request) {
 
 // Logout clears the session cookie. Always succeeds.
 func (h *AuthHandler) Logout(w http.ResponseWriter, _ *http.Request) {
-	http.SetCookie(w, &http.Cookie{
+	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: Secure intentionally omitted — clear-cookie must work over HTTP too
 		Name:     auth.SessionCookieName,
 		Value:    "",
 		Path:     "/",
@@ -321,7 +321,7 @@ func (h *AuthHandler) CSRF(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Readable (no HttpOnly) so JS can access it.
-	http.SetCookie(w, &http.Cookie{
+	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: HttpOnly=false is intentional — CSRF token must be readable by JS
 		Name:     auth.CSRFCookieName,
 		Value:    token,
 		Path:     "/",
@@ -395,7 +395,7 @@ func (h *AuthHandler) issueSession(w http.ResponseWriter, r *http.Request, ctx c
 		secure = r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https"
 	}
 
-	cookie := &http.Cookie{
+	cookie := &http.Cookie{ //nolint:gosec // G124: Secure is set via the computed `secure` variable above; gosec can't trace it
 		Name:     auth.SessionCookieName,
 		Value:    value,
 		Path:     "/",

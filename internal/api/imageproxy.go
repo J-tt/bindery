@@ -98,7 +98,7 @@ func (h *ImageProxyHandler) Serve(w http.ResponseWriter, r *http.Request) {
 	// the caller's context (cancellation, deadline). The URL has already been
 	// validated by h.validateURL; the nolint suppresses the gosec taint warning
 	// that can't trace through the validateURL indirection.
-	upReq, err := http.NewRequestWithContext(r.Context(), http.MethodGet, raw, nil) // #nosec -- URL validated above via h.validateURL (PolicyStrict)
+	upReq, err := http.NewRequestWithContext(r.Context(), http.MethodGet, raw, http.NoBody) // #nosec -- URL validated above via h.validateURL (PolicyStrict)
 	if err != nil {
 		http.Error(w, "upstream fetch failed", http.StatusBadGateway)
 		return
@@ -146,7 +146,7 @@ func (h *ImageProxyHandler) Serve(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if f, ferr := os.CreateTemp(filepath.Dir(imgFile), ".ct-*"); ferr == nil { // #nosec G304
-			if _, werr := f.Write([]byte(ct)); werr == nil {
+			if _, werr := f.WriteString(ct); werr == nil {
 				_ = f.Chmod(imageCacheMode)
 				f.Close()
 				_ = os.Rename(f.Name(), ctFile) // #nosec G304

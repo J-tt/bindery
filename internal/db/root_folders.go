@@ -65,7 +65,7 @@ func (r *RootFolderRepo) Delete(ctx context.Context, id int64) error {
 	return err
 }
 
-func (r *RootFolderRepo) UpdateFreeSpace(ctx context.Context, id int64, freeSpace int64) error {
+func (r *RootFolderRepo) UpdateFreeSpace(ctx context.Context, id, freeSpace int64) error {
 	_, err := r.db.ExecContext(ctx,
 		`UPDATE root_folders SET free_space=? WHERE id=?`, freeSpace, id)
 	return err

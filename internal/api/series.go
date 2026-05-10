@@ -945,13 +945,14 @@ func buildHardcoverDiff(series *models.Series, link *models.SeriesHardcoverLink,
 		item.LocalTitle = local.Book.Title
 		item.LocalStatus = local.Book.Status
 		item.MatchConfidence = float64(match.score) / 100
-		if match.score >= 90 || match.foreignID {
+		switch {
+		case match.score >= 90 || match.foreignID:
 			diff.Present = append(diff.Present, item)
 			matchedCatalog[match.index] = struct{}{}
-		} else if match.score >= 70 {
+		case match.score >= 70:
 			diff.Uncertain = append(diff.Uncertain, item)
 			matchedCatalog[match.index] = struct{}{}
-		} else {
+		default:
 			diff.LocalOnly = append(diff.LocalOnly, localItem)
 		}
 	}
@@ -1282,8 +1283,8 @@ func (h *SeriesHandler) matchGlobalAuthorByName(ctx context.Context, name string
 		if match != nil && match.ID != authors[idx].ID {
 			return nil, true, nil
 		}
-		copy := authors[idx]
-		match = &copy
+		a := authors[idx]
+		match = &a
 	}
 	return match, false, nil
 }

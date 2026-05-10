@@ -143,7 +143,7 @@ func TestNormalizeLanguage(t *testing.T) {
 	cases := map[string]string{
 		"english":   "eng",
 		"English":   "eng",
-		"  GERMAN ": "ger",
+		"  GERMAN ": "ger", //nolint:gocritic // mapKey: intentional leading/trailing whitespace to test TrimSpace handling
 		"french":    "fre",
 		"":          "",
 		"zulu":      "zulu", // unmapped falls through

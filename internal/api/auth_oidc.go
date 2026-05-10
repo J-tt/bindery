@@ -96,7 +96,7 @@ func (h *OIDCHandler) Login(w http.ResponseWriter, r *http.Request) {
 		writeErr(w, http.StatusInternalServerError, "encode flow: "+err.Error())
 		return
 	}
-	http.SetCookie(w, &http.Cookie{
+	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: Secure is set via cookieSecure(r); gosec can't trace through the function call
 		Name:     oidcFlowCookie,
 		Value:    flowVal,
 		Path:     "/api/v1/auth/oidc",
@@ -106,7 +106,7 @@ func (h *OIDCHandler) Login(w http.ResponseWriter, r *http.Request) {
 		MaxAge:   oidcFlowMaxAge,
 	})
 
-	http.Redirect(w, r, authURL, http.StatusFound)
+	http.Redirect(w, r, authURL, http.StatusFound) //nolint:gosec // G710: authURL is built from admin-configured OIDC provider settings, not user input
 }
 
 // Callback completes the code exchange and issues a Bindery session cookie.
@@ -132,7 +132,7 @@ func (h *OIDCHandler) Callback(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Clear the flow cookie.
-	http.SetCookie(w, &http.Cookie{
+	http.SetCookie(w, &http.Cookie{ //nolint:gosec // G124: gosec can't see that Secure is set via cookieSecure(r)
 		Name:     oidcFlowCookie,
 		Value:    "",
 		Path:     "/api/v1/auth/oidc",

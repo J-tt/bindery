@@ -239,7 +239,7 @@ func GetStalledIDs(ctx context.Context, client *models.DownloadClient) (map[stri
 		}
 		out := make(map[string]bool, len(torrents))
 		for h, t := range torrents {
-			if strings.ToLower(t.State) == "error" {
+			if strings.EqualFold(t.State, "error") {
 				out[h] = true
 			}
 		}

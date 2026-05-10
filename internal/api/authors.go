@@ -391,8 +391,8 @@ func (h *AuthorHandler) findAuthorByNameOrAliasExcluding(ctx context.Context, ex
 		if strings.ToLower(strings.TrimSpace(authors[idx].Name)) != needle {
 			continue
 		}
-		copy := authors[idx]
-		exact[copy.ID] = &copy
+		a := authors[idx]
+		exact[a.ID] = &a
 	}
 	for _, alias := range aliases {
 		if strings.ToLower(strings.TrimSpace(alias.Name)) != needle {
@@ -427,8 +427,8 @@ func (h *AuthorHandler) findAuthorByNameOrAliasExcluding(ctx context.Context, ex
 		if textutil.NormalizeAuthorName(authors[idx].Name) != normNeedle {
 			continue
 		}
-		copy := authors[idx]
-		normalized[copy.ID] = &copy
+		a := authors[idx]
+		normalized[a.ID] = &a
 	}
 	for _, alias := range aliases {
 		if textutil.NormalizeAuthorName(alias.Name) != normNeedle {
@@ -1023,8 +1023,8 @@ func (h *AuthorHandler) lookupUpstreamAuthorByName(ctx context.Context, name str
 				slog.Info("author relink match ambiguous", "author", name, "query", query)
 				return nil, errAmbiguousMetadataMatch
 			}
-			copy := results[idx]
-			match = &copy
+			r := results[idx]
+			match = &r
 		}
 		if match != nil {
 			matchedQuery = query

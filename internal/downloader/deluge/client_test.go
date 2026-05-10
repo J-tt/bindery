@@ -261,7 +261,7 @@ func TestGetTorrents_StalledState(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetTorrents: %v", err)
 	}
-	if strings.ToLower(torrents["errhash"].State) != "error" {
+	if !strings.EqualFold(torrents["errhash"].State, "error") {
 		t.Error("expected Error state")
 	}
 }

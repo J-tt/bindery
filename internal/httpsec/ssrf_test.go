@@ -34,11 +34,11 @@ func validate(raw string, policy Policy, resolver Resolver) error {
 func TestValidateOutboundURL_Scheme(t *testing.T) {
 	r := fakeResolver{m: map[string][]net.IP{"example.com": {mustIP("93.184.216.34")}}}
 
-	// ftp:// rejected
+	// ftp scheme rejected
 	if err := validate("ftp://example.com/file", PolicyStrict, r); err == nil {
 		t.Error("expected error for ftp scheme")
 	}
-	// file:// rejected
+	// file scheme rejected
 	if err := validate("file:///etc/passwd", PolicyStrict, r); err == nil {
 		t.Error("expected error for file scheme")
 	}

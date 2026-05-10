@@ -165,7 +165,7 @@ func (c *Client) apiCall(ctx context.Context, params url.Values, target interfac
 	params.Set("output", "json")
 
 	u := fmt.Sprintf("%s/api?%s", c.baseURL, params.Encode())
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, http.NoBody)
 	if err != nil {
 		return err
 	}

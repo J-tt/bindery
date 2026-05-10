@@ -98,7 +98,7 @@ func (c *PluginClient) addWithRetry(ctx context.Context, filePath string, retrie
 // Health probes GET /v1/health and returns a human-readable version
 // string for the Settings → Test button.
 func (c *PluginClient) Health(ctx context.Context) (string, error) {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/v1/health", nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, c.baseURL+"/v1/health", http.NoBody)
 	if err != nil {
 		return "", err
 	}

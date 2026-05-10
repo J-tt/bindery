@@ -20,20 +20,20 @@ func runHealthcheck() {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "healthcheck: %v\n", err)
-		os.Exit(1)
+		os.Exit(1) //nolint:gocritic // exitAfterDefer: cancel is a no-op once the process exits
 	}
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "healthcheck: %v\n", err)
-		os.Exit(1)
+		os.Exit(1) //nolint:gocritic // exitAfterDefer: cancel is a no-op once the process exits
 	}
 	status := resp.StatusCode
 	_ = resp.Body.Close()
 	if status != http.StatusOK {
 		fmt.Fprintf(os.Stderr, "healthcheck: got %d\n", status)
-		os.Exit(1)
+		os.Exit(1) //nolint:gocritic // exitAfterDefer: cancel is a no-op once the process exits
 	}
 }

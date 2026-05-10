@@ -210,7 +210,7 @@ func (c *Client) Probe(ctx context.Context) ProbeResult {
 	}
 
 	start := time.Now()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, u, http.NoBody)
 	if err != nil {
 		return ProbeResult{Error: err.Error()}
 	}
@@ -314,7 +314,7 @@ func (c *Client) parseResults(items []rssItem) []SearchResult {
 }
 
 func (c *Client) getXML(ctx context.Context, rawURL string, target interface{}) error {
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, rawURL, http.NoBody)
 	if err != nil {
 		return err
 	}

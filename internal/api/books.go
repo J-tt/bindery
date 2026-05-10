@@ -347,15 +347,15 @@ func (h *BookHandler) DeleteFile(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		if format == "" || format == models.MediaTypeEbook {
-			if book.EbookFilePath != "" { //nolint:staticcheck
-				toDelete = append(toDelete, book.EbookFilePath) //nolint:staticcheck
+			if book.EbookFilePath != "" { //nolint:staticcheck // deprecated field, kept for imports from pre-book_files versions
+				toDelete = append(toDelete, book.EbookFilePath) //nolint:staticcheck // deprecated field, kept for imports from pre-book_files versions
 			} else if book.FilePath != "" && format == models.MediaTypeEbook {
 				toDelete = append(toDelete, book.FilePath)
 			}
 		}
 		if format == "" || format == models.MediaTypeAudiobook {
-			if book.AudiobookFilePath != "" { //nolint:staticcheck
-				toDelete = append(toDelete, book.AudiobookFilePath) //nolint:staticcheck
+			if book.AudiobookFilePath != "" { //nolint:staticcheck // deprecated field, kept for imports from pre-book_files versions
+				toDelete = append(toDelete, book.AudiobookFilePath) //nolint:staticcheck // deprecated field, kept for imports from pre-book_files versions
 			}
 		}
 		// Legacy single file_path (no format qualifier).
@@ -443,13 +443,13 @@ func removeBookPath(p string) error {
 			if !strings.EqualFold(s, stem) {
 				continue
 			}
-			if rmErr := os.Remove(filepath.Join(parent, n)); rmErr != nil && !os.IsNotExist(rmErr) { //nosec G304 -- derived from DB-stored path
+			if rmErr := os.Remove(filepath.Join(parent, n)); rmErr != nil && !os.IsNotExist(rmErr) { // nosec G304 -- derived from DB-stored path
 				slog.Warn("book delete: failed to remove sibling file", "path", filepath.Join(parent, n), "error", rmErr)
 			}
 		}
 	} else {
 		// ReadDir failed — fall back to deleting only the target file.
-		if err := os.Remove(p); err != nil { //nosec G304 -- p is a DB-stored path written by the import pipeline, not user input
+		if err := os.Remove(p); err != nil { // nosec G304 -- p is a DB-stored path written by the import pipeline, not user input
 			return err
 		}
 	}
@@ -457,7 +457,7 @@ func removeBookPath(p string) error {
 	// Clean up parent directory if it is now empty.
 	remaining, err := os.ReadDir(parent)
 	if err == nil && len(remaining) == 0 {
-		_ = os.Remove(parent) //nosec G304 -- derived from DB-stored path, not user input
+		_ = os.Remove(parent) // nosec G304 -- derived from DB-stored path, not user input
 	}
 	return nil
 }

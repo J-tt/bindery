@@ -593,8 +593,8 @@ func (p *searchableAuthorProvider) GetAuthor(_ context.Context, foreignID string
 		return nil, nil
 	}
 	if author := p.authors[foreignID]; author != nil {
-		copy := *author
-		return &copy, nil
+		a := *author
+		return &a, nil
 	}
 	return nil, nil
 }
