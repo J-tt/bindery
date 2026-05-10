@@ -19,24 +19,94 @@ All notable changes to Bindery are documented here. Format loosely follows
   drop is in scope. Audiobook imports are unaffected since CWA is built
   around ebook libraries.
 
+## [v1.8.1] — 2026-05-09
+
 ### Fixed
 
-- **DNB search results couldn't be added to the wanted list** (#545) — DNB
-  bib records expose author *names* but not author IDs, so every result had
-  the Add button greyed out with a misleading "try a more specific search"
-  hint. The fix extracts ISBN(s) from MARC 020 in DNB records and adds a
-  cross-provider author resolver: when a search result lacks a foreign
-  author ID, the backend looks up the ISBN in OpenLibrary and rewrites the
-  request to use OL's canonical author/book identity. Books that resolve
-  end up under their OpenLibrary record (with OL's title and metadata);
-  books with no OL match return a clear "add the author manually first"
-  error instead of silently failing.
-- **Telemetry chart hides the freshly cut release** — `/stats` truncated the
-  version chart to top-8 by count, so a brand-new release with one or two
-  installs disappeared into `(other)` until it organically out-ranked older
-  versions (sometimes weeks). The chart now pins the configured
-  `LATEST_VERSION` into the visible region and annotates it `(latest)` so
-  newly cut releases are immediately visible to anyone watching adoption.
+- **DNB search results couldn't be added to the wanted list** (#545, #561)
+  — DNB bib records expose author *names* but not author IDs, so every
+  result had the Add button greyed out with a misleading "try a more
+  specific search" hint. The fix extracts ISBN(s) from MARC 020 in DNB
+  records and adds a cross-provider author resolver: when a search result
+  lacks a foreign author ID, the backend looks up the ISBN in OpenLibrary
+  and rewrites the request to use OL's canonical author/book identity.
+  Books that resolve end up under their OpenLibrary record (with OL's
+  title and metadata); books with no OL match return a clear "add the
+  author manually first" error instead of silently failing.
+- **Telemetry chart hides the freshly cut release** (#546) — `/stats`
+  truncated the version chart to top-8 by count, so a brand-new release
+  with one or two installs disappeared into `(other)` until it
+  organically out-ranked older versions (sometimes weeks). The chart now
+  pins the configured `LATEST_VERSION` into the visible region and
+  annotates it `(latest)` so newly cut releases are immediately visible.
+- **Transmission retry path silently used corrupted bodies** (#558) — On
+  retry against the Transmission RPC endpoint, `io.ReadAll` errors were
+  dropped and an empty / partial slice was used as the response body.
+  Errors now propagate via `fmt.Errorf("transmission: read retry body:
+  %w", err)` so a torn body fails loudly instead of producing
+  garbage-decoded torrent state.
+- **`refreshBookStatus` could zero a user's file paths on transient DB
+  errors** (#558) — `Scan` errors on the `book_files` lookup were dropped
+  via `_ = QueryRowContext(...).Scan(&path)`, so any error other than
+  `sql.ErrNoRows` (lock timeout, corruption, connection drop) wrote `""`
+  back to `book.EbookFilePath` / `book.AudiobookFilePath`. Now distinguishes
+  `sql.ErrNoRows` (legitimate empty path) from real failures via
+  `errors.Is`, returning the wrapped error in the latter case.
+- **Non-ASCII filenames mangled in Content-Disposition** (#558) — Library
+  file downloads now emit RFC 5987 `filename*=UTF-8''<percent-encoded>`
+  alongside the legacy `filename="..."` parameter, so titles with German /
+  Cyrillic / CJK characters land on disk with the correct name instead of
+  being rewritten to a quoted-printable mojibake form.
+- **Frontend timer leaks on unmount** (#556) — `AuthSettings`'s
+  copy-to-clipboard "copied" badge and `DiscoverPage`'s toast clear-out
+  used bare `setTimeout` calls that fired against unmounted components,
+  producing React's "can't update state on unmounted component" warning.
+  Both are now `useEffect`-driven with `clearTimeout` cleanup.
+
+### Changed
+
+- **Log persistence shutdown is now graceful** (#558) — `LogHandler.Stop()`
+  closes the in-memory channel and waits (bounded by a 5s context) for
+  the drain goroutine to flush any in-flight log entries before the
+  process exits. Wired into `cmd/bindery/main.go` as a deferred call.
+  Previously the goroutine leaked for the lifetime of the process and
+  any buffered entries were lost on shutdown. Note: the `defer` only
+  fires on clean main-return paths, not on signal-driven termination —
+  full benefit requires #559 (signal-based graceful shutdown), tracked
+  separately.
+- **Several previously-dropped errors now surface in the log stream**
+  (#558) — `slog.Warn` calls were added to `internal/api/imageproxy.go`
+  (response write), `internal/api/auth_oidc.go` (provider parse),
+  `internal/api/authors.go` (batch dedup updates),
+  `internal/db/recommendations.go` (genres marshal), and
+  `internal/prowlarr/syncer.go` (`SetLastSyncAt` after a successful
+  sync). Behaviour is unchanged; visibility is not.
+
+### Security
+
+- **API key compared with `subtle.ConstantTimeCompare` instead of `==`**
+  (#555) — Both the main HTTP middleware (`internal/auth/middleware.go`)
+  and the OPDS auth path (`internal/api/opds_auth.go`) used variable-time
+  string equality on the API key, leaking enough timing information to
+  enable a remote byte-by-byte recovery attack against a sufficiently
+  determined attacker. Both sites now use `subtle.ConstantTimeCompare`,
+  with the existing empty-key short-circuit preserved so empty submissions
+  don't telegraph the real key's length.
+- **GitHub Actions in `ping-server.yml` pinned to commit SHAs** (#555) —
+  Five actions (`actions/checkout`, `docker/login-action`,
+  `docker/setup-qemu-action`, `docker/setup-buildx-action`,
+  `docker/build-push-action`) were pinned by tag, leaving the workflow
+  vulnerable to a tag-rotation supply-chain attack. All are now pinned to
+  the same commit SHAs already in use in `ci.yml`.
+- **`cmd/telemetry-server/Dockerfile` base images pinned by digest**
+  (#555) — `golang:1.25-alpine` and `alpine:3.21` are now pinned to their
+  content-addressable digests so a tag rotation can't silently swap the
+  base image during the next ping-server build.
+- **Dedicated `*http.Client` for telemetry pings** (#555) — Replaces
+  `http.DefaultClient` for the once-per-day telemetry ping path with a
+  package-local client carrying its own timeout. The 10s context deadline
+  was already in place, but the dedicated client guards against unrelated
+  code mutating `DefaultClient` and reaching into the ping path.
 
 ## [v1.8.0] — 2026-05-09
 
