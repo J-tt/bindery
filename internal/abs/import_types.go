@@ -47,14 +47,15 @@ type enumerateFunc func(ctx context.Context, libraryID string, fn func(context.C
 type enhancedHardcoverSeriesEnabledFunc func(context.Context) bool
 
 type ImportConfig struct {
-	SourceID  string
-	BaseURL   string
-	APIKey    string
-	LibraryID string
-	PathRemap string
-	Label     string
-	Enabled   bool
-	DryRun    bool
+	SourceID            string
+	BaseURL             string
+	APIKey              string
+	LibraryID           string
+	AudiobooksLibraryID string
+	PathRemap           string
+	Label               string
+	Enabled             bool
+	DryRun              bool
 }
 
 func (c ImportConfig) normalized() ImportConfig {
@@ -65,6 +66,7 @@ func (c ImportConfig) normalized() ImportConfig {
 	c.BaseURL = strings.TrimSpace(c.BaseURL)
 	c.APIKey = strings.TrimSpace(c.APIKey)
 	c.LibraryID = strings.TrimSpace(c.LibraryID)
+	c.AudiobooksLibraryID = strings.TrimSpace(c.AudiobooksLibraryID)
 	c.PathRemap = strings.TrimSpace(c.PathRemap)
 	c.Label = strings.TrimSpace(c.Label)
 	if c.Label == "" {

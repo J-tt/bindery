@@ -188,7 +188,7 @@ handlers accept `audiobookRootFolderId` in the request body.
 
 ---
 
-## Bug 9: Bindery supports only a single ABS library connection
+## Bug 9: Bindery supports only a single ABS library connection ✓ Fixed
 
 **File:** `internal/abs/` — settings keys `abs.base_url`, `abs.library_id`
 
@@ -201,8 +201,10 @@ never reconciled; if it points to `Audiobooks`, ebook items are missed.
 **Workaround:** Point `abs.library_id` at whichever library is more important. Manually
 reconcile the other library's items if needed.
 
-**Fix:** Support a list of `(base_url, library_id)` pairs, or at minimum add a second
-`abs.audiobooks_library_id` setting.
+**Fix:** Added `abs.audiobooks_library_id` setting (`SettingABSAudiobooksLibraryID`). When
+set to a different library ID than `abs.library_id`, the importer enumerates both libraries
+in sequence within a single import run — each library gets its own `abs_import_runs` record.
+The new field is exposed in `GET`/`PUT /api/v1/abs/config` as `audiobooksLibraryId`.
 
 ---
 

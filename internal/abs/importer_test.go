@@ -3553,6 +3553,49 @@ func TestImporter_RollbackSkipsSnapshotWhenProvenanceLocalChanged(t *testing.T) 
 	}
 }
 
+func TestImporter_RunEnumeratesBothLibraries_WhenAudiobooksLibraryIDSet(t *testing.T) {
+	t.Parallel()
+
+	importer, _, _, _, _, _, runRepo, _, _, _ := newABSImporterFixture(t)
+
+	var enumeratedLibraryIDs []string
+	importer.enumerateFn = func(_ context.Context, libraryID string, _ func(context.Context, NormalizedLibraryItem) error) (EnumerationStats, error) {
+		enumeratedLibraryIDs = append(enumeratedLibraryIDs, libraryID)
+		return EnumerationStats{PagesScanned: 1, ItemsSeen: 0, ItemsNormalized: 0}, nil
+	}
+
+	_, err := importer.Run(context.Background(), ImportConfig{
+		SourceID:            DefaultSourceID,
+		BaseURL:             "https://abs.example.com",
+		APIKey:              "secret",
+		LibraryID:           "lib-books",
+		AudiobooksLibraryID: "lib-audio",
+		Label:               "Shelf",
+		Enabled:             true,
+	})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+
+	if len(enumeratedLibraryIDs) != 2 {
+		t.Fatalf("enumerated %d libraries, want 2; got %v", len(enumeratedLibraryIDs), enumeratedLibraryIDs)
+	}
+	if enumeratedLibraryIDs[0] != "lib-books" {
+		t.Fatalf("first library = %q, want lib-books", enumeratedLibraryIDs[0])
+	}
+	if enumeratedLibraryIDs[1] != "lib-audio" {
+		t.Fatalf("second library = %q, want lib-audio", enumeratedLibraryIDs[1])
+	}
+
+	runs, err := runRepo.ListRecent(context.Background(), 10)
+	if err != nil {
+		t.Fatalf("ListRecent: %v", err)
+	}
+	if len(runs) != 2 {
+		t.Fatalf("run records = %d, want 2", len(runs))
+	}
+}
+
 func TestImporter_Rollback_NilReposAreSafe(t *testing.T) {
 	t.Parallel()
 

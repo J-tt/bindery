@@ -15,12 +15,13 @@ import (
 )
 
 const (
-	SettingABSBaseURL   = "abs.base_url"
-	SettingABSAPIKey    = "abs.api_key" //nolint:gosec // #nosec G101 -- settings key name, not a credential value
-	SettingABSLibraryID = "abs.library_id"
-	SettingABSEnabled   = "abs.enabled"
-	SettingABSLabel     = "abs.label"
-	SettingABSPathRemap = "abs.path_remap"
+	SettingABSBaseURL             = "abs.base_url"
+	SettingABSAPIKey              = "abs.api_key" //nolint:gosec // #nosec G101 -- settings key name, not a credential value
+	SettingABSLibraryID           = "abs.library_id"
+	SettingABSAudiobooksLibraryID = "abs.audiobooks_library_id"
+	SettingABSEnabled             = "abs.enabled"
+	SettingABSLabel               = "abs.label"
+	SettingABSPathRemap           = "abs.path_remap"
 )
 
 type absClient interface {
@@ -38,22 +39,24 @@ type ABSHandler struct {
 }
 
 type ABSConfigResponse struct {
-	FeatureEnabled   bool   `json:"featureEnabled"`
-	BaseURL          string `json:"baseUrl"`
-	Label            string `json:"label"`
-	Enabled          bool   `json:"enabled"`
-	LibraryID        string `json:"libraryId"`
-	PathRemap        string `json:"pathRemap"`
-	APIKeyConfigured bool   `json:"apiKeyConfigured"`
+	FeatureEnabled      bool   `json:"featureEnabled"`
+	BaseURL             string `json:"baseUrl"`
+	Label               string `json:"label"`
+	Enabled             bool   `json:"enabled"`
+	LibraryID           string `json:"libraryId"`
+	AudiobooksLibraryID string `json:"audiobooksLibraryId"`
+	PathRemap           string `json:"pathRemap"`
+	APIKeyConfigured    bool   `json:"apiKeyConfigured"`
 }
 
 type absConfigRequest struct {
-	BaseURL   *string `json:"baseUrl"`
-	Label     *string `json:"label"`
-	Enabled   *bool   `json:"enabled"`
-	LibraryID *string `json:"libraryId"`
-	PathRemap *string `json:"pathRemap"`
-	APIKey    *string `json:"apiKey"`
+	BaseURL             *string `json:"baseUrl"`
+	Label               *string `json:"label"`
+	Enabled             *bool   `json:"enabled"`
+	LibraryID           *string `json:"libraryId"`
+	AudiobooksLibraryID *string `json:"audiobooksLibraryId"`
+	PathRemap           *string `json:"pathRemap"`
+	APIKey              *string `json:"apiKey"`
 }
 
 type absProbeRequest struct {
@@ -154,6 +157,10 @@ func (h *ABSHandler) SetConfig(w http.ResponseWriter, r *http.Request) {
 	if req.LibraryID != nil {
 		libraryID = strings.TrimSpace(*req.LibraryID)
 	}
+	audiobooksLibraryID := current.AudiobooksLibraryID
+	if req.AudiobooksLibraryID != nil {
+		audiobooksLibraryID = strings.TrimSpace(*req.AudiobooksLibraryID)
+	}
 	pathRemap := current.PathRemap
 	if req.PathRemap != nil {
 		pathRemap = strings.TrimSpace(*req.PathRemap)
@@ -179,6 +186,10 @@ func (h *ABSHandler) SetConfig(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
 	}
+	if err := h.settings.Set(r.Context(), SettingABSAudiobooksLibraryID, audiobooksLibraryID); err != nil {
+		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		return
+	}
 	if err := h.settings.Set(r.Context(), SettingABSPathRemap, pathRemap); err != nil {
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		return
@@ -191,12 +202,13 @@ func (h *ABSHandler) SetConfig(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, ABSConfigResponse{
-		BaseURL:          baseURL,
-		Label:            label,
-		Enabled:          enabled,
-		LibraryID:        libraryID,
-		PathRemap:        pathRemap,
-		APIKeyConfigured: apiKey != "",
+		BaseURL:             baseURL,
+		Label:               label,
+		Enabled:             enabled,
+		LibraryID:           libraryID,
+		AudiobooksLibraryID: audiobooksLibraryID,
+		PathRemap:           pathRemap,
+		APIKeyConfigured:    apiKey != "",
 	})
 }
 
@@ -254,12 +266,13 @@ func (h *ABSHandler) Libraries(w http.ResponseWriter, r *http.Request) {
 }
 
 type ABSStoredConfig struct {
-	BaseURL   string
-	APIKey    string
-	Label     string
-	LibraryID string
-	PathRemap string
-	Enabled   bool
+	BaseURL             string
+	APIKey              string
+	Label               string
+	LibraryID           string
+	AudiobooksLibraryID string
+	PathRemap           string
+	Enabled             bool
 }
 
 func LoadABSConfig(ctx context.Context, settings *db.SettingsRepo) ABSStoredConfig {
@@ -275,12 +288,13 @@ func LoadABSConfig(ctx context.Context, settings *db.SettingsRepo) ABSStoredConf
 		label = "Audiobookshelf"
 	}
 	return ABSStoredConfig{
-		BaseURL:   get(SettingABSBaseURL),
-		APIKey:    get(SettingABSAPIKey),
-		Label:     label,
-		LibraryID: get(SettingABSLibraryID),
-		PathRemap: get(SettingABSPathRemap),
-		Enabled:   strings.EqualFold(get(SettingABSEnabled), "true"),
+		BaseURL:             get(SettingABSBaseURL),
+		APIKey:              get(SettingABSAPIKey),
+		Label:               label,
+		LibraryID:           get(SettingABSLibraryID),
+		AudiobooksLibraryID: get(SettingABSAudiobooksLibraryID),
+		PathRemap:           get(SettingABSPathRemap),
+		Enabled:             strings.EqualFold(get(SettingABSEnabled), "true"),
 	}
 }
 
@@ -291,13 +305,14 @@ func (h *ABSHandler) loadStoredConfig(ctx context.Context) ABSStoredConfig {
 func (h *ABSHandler) loadConfig(ctx context.Context) ABSConfigResponse {
 	cfg := h.loadStoredConfig(ctx)
 	return ABSConfigResponse{
-		FeatureEnabled:   h.featureEnabled,
-		BaseURL:          cfg.BaseURL,
-		Label:            cfg.Label,
-		Enabled:          cfg.Enabled,
-		LibraryID:        cfg.LibraryID,
-		PathRemap:        cfg.PathRemap,
-		APIKeyConfigured: cfg.APIKey != "",
+		FeatureEnabled:      h.featureEnabled,
+		BaseURL:             cfg.BaseURL,
+		Label:               cfg.Label,
+		Enabled:             cfg.Enabled,
+		LibraryID:           cfg.LibraryID,
+		AudiobooksLibraryID: cfg.AudiobooksLibraryID,
+		PathRemap:           cfg.PathRemap,
+		APIKeyConfigured:    cfg.APIKey != "",
 	}
 }
 

@@ -46,13 +46,14 @@ func (h *ABSImportHandler) Start(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	runCfg := abs.ImportConfig{
-		SourceID:  abs.DefaultSourceID,
-		BaseURL:   cfg.BaseURL,
-		APIKey:    cfg.APIKey,
-		LibraryID: cfg.LibraryID,
-		PathRemap: cfg.PathRemap,
-		Label:     cfg.Label,
-		Enabled:   cfg.Enabled,
+		SourceID:            abs.DefaultSourceID,
+		BaseURL:             cfg.BaseURL,
+		APIKey:              cfg.APIKey,
+		LibraryID:           cfg.LibraryID,
+		AudiobooksLibraryID: cfg.AudiobooksLibraryID,
+		PathRemap:           cfg.PathRemap,
+		Label:               cfg.Label,
+		Enabled:             cfg.Enabled,
 	}
 	if req.DryRun != nil {
 		runCfg.DryRun = *req.DryRun

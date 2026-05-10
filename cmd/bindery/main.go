@@ -270,13 +270,14 @@ func main() {
 		})
 	storedABS := api.LoadABSConfig(ctxBoot, settingsRepo)
 	resumeCfg := abs.ImportConfig{
-		SourceID:  abs.DefaultSourceID,
-		BaseURL:   storedABS.BaseURL,
-		APIKey:    storedABS.APIKey,
-		LibraryID: storedABS.LibraryID,
-		PathRemap: storedABS.PathRemap,
-		Label:     storedABS.Label,
-		Enabled:   storedABS.Enabled,
+		SourceID:            abs.DefaultSourceID,
+		BaseURL:             storedABS.BaseURL,
+		APIKey:              storedABS.APIKey,
+		LibraryID:           storedABS.LibraryID,
+		AudiobooksLibraryID: storedABS.AudiobooksLibraryID,
+		PathRemap:           storedABS.PathRemap,
+		Label:               storedABS.Label,
+		Enabled:             storedABS.Enabled,
 	}
 	if resumed, err := absImporter.ResumeInterrupted(ctxBoot, resumeCfg); err != nil {
 		slog.Warn("abs interrupted import resume skipped", "error", err)

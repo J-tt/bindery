@@ -398,12 +398,90 @@ func (i *Importer) run(ctx context.Context, cfg ImportConfig) *ImportStats {
 		"editionsAdded", stats.EditionsAdded,
 		"skipped", stats.Skipped,
 		"failed", stats.Failed)
+
+	if cfg.AudiobooksLibraryID != "" && cfg.AudiobooksLibraryID != cfg.LibraryID {
+		i.runSecondaryLibrary(ctx, cfg, enumFn, authorMatcher, stats)
+	}
+
 	i.setProgress(func(p *ImportProgress) {
 		p.Checkpoint = nil
 		p.ResumedFromCheckpoint = false
 		p.Message = importDoneMessage(cfg.DryRun)
 	})
 	return stats
+}
+
+// runSecondaryLibrary enumerates and imports items from a second ABS library (e.g. an
+// audiobooks library separate from the primary ebooks library). It creates its own run
+// record and merges enumeration counts into totalStats.
+func (i *Importer) runSecondaryLibrary(ctx context.Context, cfg ImportConfig, enumFn enumerateFunc, authorMatcher *authorMatcher, totalStats *ImportStats) {
+	libID := cfg.AudiobooksLibraryID
+	libCfg := cfg
+	libCfg.LibraryID = libID
+
+	sourceConfigJSON, err := encodeJSON(sourceSnapshot(libCfg))
+	if err != nil {
+		slog.Warn("abs import: encode source config for secondary library", "libraryID", libID, "error", err)
+		sourceConfigJSON = "{}"
+	}
+	run := &models.ABSImportRun{
+		SourceID:         cfg.SourceID,
+		SourceLabel:      cfg.Label,
+		BaseURL:          cfg.BaseURL,
+		LibraryID:        libID,
+		Status:           runStatusRunning,
+		DryRun:           cfg.DryRun,
+		SourceConfigJSON: sourceConfigJSON,
+		CheckpointJSON:   "null",
+		SummaryJSON:      "{}",
+	}
+	if i.runs != nil {
+		if err := i.runs.Create(ctx, run); err != nil {
+			slog.Warn("abs import: create run for secondary library", "libraryID", libID, "error", err)
+		}
+	}
+
+	libStats := &ImportStats{}
+	summary := ImportSummary{DryRun: cfg.DryRun}
+	runStatus := runStatusCompleted
+
+	enumStats, err := enumFn(ctx, libID, func(ctx context.Context, item NormalizedLibraryItem) error {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		i.setProgress(func(p *ImportProgress) {
+			p.Message = importItemMessage(cfg.DryRun, firstNonEmpty(item.Title, item.ItemID))
+		})
+		result := i.importOne(ctx, libCfg, run.ID, item, libStats, allowImmediateImport(item), authorMatcher)
+		i.setProgress(func(p *ImportProgress) {
+			p.Processed++
+			p.Results = appendImportProgressResult(p.Results, result)
+		})
+		return nil
+	})
+	if err != nil {
+		runStatus = runStatusFailed
+		summary.Error = err.Error()
+		slog.Warn("abs import: secondary library enumeration failed", "libraryID", libID, "error", err)
+	} else {
+		totalStats.LibrariesScanned++
+		totalStats.PagesScanned += enumStats.PagesScanned
+		totalStats.ItemsSeen += enumStats.ItemsSeen
+		totalStats.ItemsNormalized += enumStats.ItemsNormalized
+		totalStats.ItemsDetailFetched += enumStats.ItemsDetailFetched
+	}
+
+	summary.Stats = *libStats
+	if run.ID != 0 && i.runs != nil {
+		if err := i.runs.Finish(ctx, run.ID, runStatus, summary); err != nil {
+			slog.Warn("abs import: finish secondary library run failed", "runID", run.ID, "error", err)
+		}
+	}
+	slog.Info("abs import secondary library complete",
+		"libraryID", libID,
+		"dryRun", cfg.DryRun,
+		"pagesScanned", enumStats.PagesScanned,
+		"itemsSeen", enumStats.ItemsSeen)
 }
 
 func (i *Importer) resolveEnumerator(cfg ImportConfig, runID int64) (enumerateFunc, error) {

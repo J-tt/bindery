@@ -410,6 +410,46 @@ func TestABSProbeRequiresSavedBaseURL(t *testing.T) {
 	}
 }
 
+func TestABSSetConfig_PersistsAudiobooksLibraryID(t *testing.T) {
+	h, repo, ctx := absFixture(t, nil)
+
+	body := bytes.NewBufferString(`{"baseUrl":"https://abs.example.com/","apiKey":"secret","libraryId":"lib_books","audiobooksLibraryId":"lib_audio","enabled":true}`)
+	rec := httptest.NewRecorder()
+	h.SetConfig(rec, httptest.NewRequest(http.MethodPut, "/api/v1/abs/config", body))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("code = %d: %s", rec.Code, rec.Body.String())
+	}
+
+	got, _ := repo.Get(ctx, SettingABSAudiobooksLibraryID)
+	if got == nil || got.Value != "lib_audio" {
+		t.Fatalf("audiobooks library id not persisted: %+v", got)
+	}
+
+	rec = httptest.NewRecorder()
+	h.GetConfig(rec, httptest.NewRequest(http.MethodGet, "/api/v1/abs/config", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GetConfig code = %d", rec.Code)
+	}
+	var cfg ABSConfigResponse
+	if err := json.NewDecoder(rec.Body).Decode(&cfg); err != nil {
+		t.Fatalf("decode: %v", err)
+	}
+	if cfg.AudiobooksLibraryID != "lib_audio" {
+		t.Fatalf("audiobooksLibraryId = %q, want lib_audio", cfg.AudiobooksLibraryID)
+	}
+}
+
+func TestLoadABSConfig_IncludesAudiobooksLibraryID(t *testing.T) {
+	_, repo, ctx := absFixture(t, nil)
+	if err := repo.Set(ctx, SettingABSAudiobooksLibraryID, "lib_audio"); err != nil {
+		t.Fatal(err)
+	}
+	cfg := LoadABSConfig(ctx, repo)
+	if cfg.AudiobooksLibraryID != "lib_audio" {
+		t.Fatalf("AudiobooksLibraryID = %q, want lib_audio", cfg.AudiobooksLibraryID)
+	}
+}
+
 func TestABSLibrariesFiltersToBookLibraries(t *testing.T) {
 	client := &stubABSClient{
 		librariesResp: []abs.Library{
