@@ -136,7 +136,7 @@ Fall back to `copy` (with a warning) when cross-filesystem import is detected.
 
 ---
 
-## Bug 7: `importFailed` downloads are never automatically retried
+## Bug 7: `importFailed` downloads are never automatically retried ✓ Fixed
 
 **File:** `internal/importer/scanner.go` — `CheckDownloads()`
 
@@ -154,8 +154,11 @@ UPDATE downloads SET status='downloading' WHERE status='importFailed';
 ```
 Re-run manually after fixing the underlying cause.
 
-**Fix:** Add a `importFailed` → `downloading` retry with exponential back-off (cap at e.g.
-3 retries), or expose a "retry failed imports" button in the UI.
+**Fix:** All four download client check loops (`checkQbittorrentDownloads`,
+`checkTransmissionDownloads`, `checkSABnzbdDownloads`, `checkNZBGetDownloads`) now retry
+downloads in `importFailed` state up to `importRetryLimit` (3) times before giving up.
+A new `import_retry_count` column (migration 036) tracks the attempt count so retries
+are capped and do not loop forever on persistently broken imports.
 
 ---
 

@@ -17,7 +17,8 @@ type DownloadRepo struct {
 const downloadSelectColumns = `
 	id, guid, book_id, edition_id, indexer_id, download_client_id,
 	title, nzb_url, size, sabnzbd_nzo_id, torrent_id, status, protocol,
-	quality, indexer_flags, error_message, added_at, grabbed_at, completed_at, imported_at`
+	quality, indexer_flags, error_message, added_at, grabbed_at, completed_at, imported_at,
+	import_retry_count`
 
 func NewDownloadRepo(db *sql.DB) *DownloadRepo {
 	return &DownloadRepo{db: db}
@@ -149,6 +150,15 @@ func (r *DownloadRepo) SetErrorWithStatus(ctx context.Context, id int64, status 
 	return err
 }
 
+// IncrementImportRetryCount bumps the import_retry_count for the download by
+// one. It is called just before each automatic import retry (Bug #7) so the
+// retry cap can be enforced on subsequent check cycles.
+func (r *DownloadRepo) IncrementImportRetryCount(ctx context.Context, id int64) error {
+	_, err := r.db.ExecContext(ctx,
+		"UPDATE downloads SET import_retry_count = import_retry_count + 1 WHERE id=?", id)
+	return err
+}
+
 func (r *DownloadRepo) Delete(ctx context.Context, id int64) error {
 	_, err := r.db.ExecContext(ctx, "DELETE FROM downloads WHERE id=?", id)
 	return err
@@ -174,6 +184,7 @@ func (r *DownloadRepo) query(ctx context.Context, q string, args ...interface{})
 			&d.Title, &d.NZBURL, &d.Size, &d.SABnzbdNzoID, &d.TorrentID, &d.Status, &d.Protocol,
 			&d.Quality, &d.IndexerFlags, &d.ErrorMessage,
 			&d.AddedAt, &d.GrabbedAt, &d.CompletedAt, &d.ImportedAt,
+			&d.ImportRetryCount,
 		); err != nil {
 			return nil, fmt.Errorf("scan download: %w", err)
 		}
