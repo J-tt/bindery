@@ -78,7 +78,7 @@ it is always a shared root.
 
 ---
 
-## Bug 4: All mutating API endpoints silently require `X-Requested-With: bindery-ui` header
+## Bug 4: All mutating API endpoints silently require `X-Requested-With: bindery-ui` header ✓ Fixed
 
 **File:** `internal/auth/middleware.go` — `RequireXRequestedWith`
 
@@ -95,8 +95,10 @@ session even exists, making the first login attempt from any non-browser client 
 AND fetch a CSRF token (`GET /api/v1/auth/csrf` → `csrfToken`) and include it as
 `X-CSRF-Token` on all mutating requests after login.
 
-**Fix:** Document the required headers in the API docs. Consider relaxing the requirement for
-the login endpoint specifically (there is no session to protect at that point).
+**Fix:** `RequireXRequestedWith` now exempts `AllowUnauthPath` routes (login, setup, logout,
+csrf, status) — the same set already exempted by `RequireCSRFToken`. There is no session
+cookie to protect against CSRF on these endpoints, so requiring the header was pure friction
+for non-browser clients with no security benefit.
 
 ---
 
