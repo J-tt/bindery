@@ -141,7 +141,7 @@ Fall back to `copy` (with a warning) when cross-filesystem import is detected.
 
 ---
 
-## Bug 7: `importFailed` downloads are never automatically retried ✓ Fixed
+## Bug 7: `importFailed` downloads are never automatically retried ✓ Fixed (migration 036, IncrementImportRetryCount)
 
 **File:** `internal/importer/scanner.go` — `CheckDownloads()`
 
@@ -269,7 +269,7 @@ import (see also Bug 10).
 
 ---
 
-## Bug 13: Bindery imports files to the ebook library path for `media_type='both'` books when an ebook torrent is grabbed
+## Bug 13: Bindery imports files to the ebook library path for `media_type='both'` books when an ebook torrent is grabbed ✓ Fixed
 
 **Description:** When a book has `media_type='both'` (Bindery is configured to manage both
 formats), and a torrent that happens to contain an ebook (epub/azw3) is grabbed, the file
@@ -281,8 +281,10 @@ imported was an ebook rather than an audiobook.
 **Workaround:** Check the file extension of imported items in the `downloads` table path,
 or inspect the library directory directly.
 
-**Fix:** Show the detected format (audiobook/ebook) in the import history UI. Optionally,
-allow configuring per-book `media_type` preference so that searches prioritise one format.
+**Fix:** `createHistoryEvent` now includes a `"format"` key (`"ebook"` or `"audiobook"`) in
+the `bookImported` history event data for both the ebook and audiobook import paths. The queue
+and history UI can surface this field so the user knows which format was imported without
+inspecting the file path.
 
 ---
 
