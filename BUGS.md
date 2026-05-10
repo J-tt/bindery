@@ -222,20 +222,24 @@ cover, or narrator until the user manually triggers a metadata match in the ABS 
 
 ---
 
-## Bug 11: `X-Requested-With` bypass via API key not applied consistently
+## Bug 11: `X-Requested-With` bypass via API key not applied consistently ✓ Fixed
 
-**File:** `internal/auth/middleware.go` — `RequireXRequestedWith`
+**File:** `internal/auth/middleware.go` — `Middleware`
 
 **Description:** The `X-Requested-With: bindery-ui` requirement is bypassed when an API key
-is present in `X-Api-Key` header or `?apikey=` query param. However, some endpoints (noted
-in Bug 4 context) return admin-role errors for API key auth even when the key is valid and
-the user has admin role. This creates a situation where API key auth bypasses CSRF/XRW checks
-but then fails at the role check, giving a misleading error path.
+is present in `X-Api-Key` header or `?apikey=` query param. However, `Middleware` passed the
+request to the next handler without setting any role in context when API key auth succeeded.
+`RequireAdmin` subsequently saw role `""` instead of `"admin"` and returned 403
+`{"error":"admin role required"}`, making API key auth silently unusable for any admin-protected
+endpoint regardless of whether the key was valid.
 
 **Workaround:** Use session-cookie auth with the `X-Requested-With` and `X-CSRF-Token`
 headers for all mutating operations.
 
-**Fix:** Audit which endpoints require admin session vs. admin API key, and document clearly.
+**Fix:** `Middleware` now sets `userRoleCtxKey = "admin"` in the request context when a
+valid API key is accepted. API keys are admin credentials by definition (there is only one
+global key, provisioned by the admin). `RequireAdmin`-guarded routes are now reachable via
+API key without a session cookie.
 
 ---
 

@@ -164,6 +164,10 @@ func Middleware(p Provider) func(http.Handler) http.Handler {
 				return
 			}
 			if key := requestAPIKey(r); key != "" && key == p.APIKey() {
+				// API key authentication is always treated as admin. Set the role
+				// so RequireAdmin-protected endpoints are accessible without a
+				// session cookie (Bug 11: misleading "admin role required" 403).
+				r = r.WithContext(context.WithValue(r.Context(), userRoleCtxKey, "admin"))
 				next.ServeHTTP(w, r)
 				return
 			}
