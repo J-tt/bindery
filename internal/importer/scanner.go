@@ -221,22 +221,28 @@ func (s *Scanner) pushCalibreAdd(ctx context.Context, book *models.Book, path st
 	slog.Info("calibre: book mirrored", "mode", mode, "bookId", book.ID, "calibreId", id, "path", path)
 }
 
-// CheckDownloads polls SABnzbd for status changes and updates the local download records.
+// CheckDownloads polls all enabled download clients for status changes and
+// updates the local download records. Every enabled client is polled in
+// priority order so that downloads from secondary clients (e.g. a second
+// qBittorrent instance) are never silently ignored (Bug #1).
 func (s *Scanner) CheckDownloads(ctx context.Context) {
-	client, err := s.clients.GetFirstEnabled(ctx)
-	if err != nil || client == nil {
+	clients, err := s.clients.ListEnabled(ctx)
+	if err != nil {
+		slog.Warn("CheckDownloads: failed to list enabled clients", "error", err)
 		return
 	}
-
-	switch client.Type {
-	case "transmission":
-		s.checkTransmissionDownloads(ctx, client)
-	case "qbittorrent":
-		s.checkQbittorrentDownloads(ctx, client)
-	case "nzbget":
-		s.checkNZBGetDownloads(ctx, client)
-	default:
-		s.checkSABnzbdDownloads(ctx, client)
+	for i := range clients {
+		client := &clients[i]
+		switch client.Type {
+		case "transmission":
+			s.checkTransmissionDownloads(ctx, client)
+		case "qbittorrent":
+			s.checkQbittorrentDownloads(ctx, client)
+		case "nzbget":
+			s.checkNZBGetDownloads(ctx, client)
+		default:
+			s.checkSABnzbdDownloads(ctx, client)
+		}
 	}
 }
 

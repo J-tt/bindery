@@ -4,7 +4,7 @@ Bugs discovered while running Bindery v1.7.0 (commit 94a5103) on NixOS.
 
 ---
 
-## Bug 1: CheckDownloads only polls the first-priority download client
+## Bug 1: CheckDownloads only polls the first-priority download client ✓ Fixed in TODO
 
 **File:** `internal/importer/scanner.go` — `CheckDownloads()`
 

@@ -134,6 +134,94 @@ func TestCheckDownloads_NoEnabledClient(t *testing.T) {
 	s.CheckDownloads(ctx) // no panic, no DB writes
 }
 
+// TestCheckDownloads_AllEnabledClientsPolled verifies that CheckDownloads
+// iterates every enabled client, not just the first by priority (Bug #1).
+// Two SABnzbd stubs are registered; each gets one completed download assigned
+// to it. After CheckDownloads both downloads must be marked completed.
+func TestCheckDownloads_AllEnabledClientsPolled(t *testing.T) {
+	makeNzoServer := func(nzoID string) *httptest.Server {
+		return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"history": map[string]any{
+					"slots": []map[string]any{{
+						"nzo_id":       nzoID,
+						"status":       "Completed",
+						"path":         t.TempDir(),
+						"fail_message": "",
+					}},
+				},
+			})
+		}))
+	}
+
+	srv1 := makeNzoServer("nzo-aaa")
+	defer srv1.Close()
+	srv2 := makeNzoServer("nzo-bbb")
+	defer srv2.Close()
+
+	s, _, _, ctx := scannerFixture(t, "") // empty libraryDir → import will failImport, but status=completed is set first
+
+	host1, port1 := scannerTestHostPort(t, srv1.URL)
+	client1 := &models.DownloadClient{
+		Name: "sab1", Type: "sabnzbd",
+		Host: host1, Port: port1, Enabled: true, Priority: 0,
+	}
+	if err := s.clients.Create(ctx, client1); err != nil {
+		t.Fatalf("create client1: %v", err)
+	}
+
+	host2, port2 := scannerTestHostPort(t, srv2.URL)
+	client2 := &models.DownloadClient{
+		Name: "sab2", Type: "sabnzbd",
+		Host: host2, Port: port2, Enabled: true, Priority: 0,
+	}
+	if err := s.clients.Create(ctx, client2); err != nil {
+		t.Fatalf("create client2: %v", err)
+	}
+
+	nzoID1 := "nzo-aaa"
+	dl1 := &models.Download{
+		GUID: "dl-1", Title: "Book One", NZBURL: "http://x/1",
+		Status: models.StateDownloading, Protocol: "usenet",
+		DownloadClientID: &client1.ID, SABnzbdNzoID: &nzoID1,
+	}
+	if err := s.downloads.Create(ctx, dl1); err != nil {
+		t.Fatalf("create dl1: %v", err)
+	}
+
+	nzoID2 := "nzo-bbb"
+	dl2 := &models.Download{
+		GUID: "dl-2", Title: "Book Two", NZBURL: "http://x/2",
+		Status: models.StateDownloading, Protocol: "usenet",
+		DownloadClientID: &client2.ID, SABnzbdNzoID: &nzoID2,
+	}
+	if err := s.downloads.Create(ctx, dl2); err != nil {
+		t.Fatalf("create dl2: %v", err)
+	}
+
+	s.CheckDownloads(ctx)
+
+	got1, err := s.downloads.GetByGUID(ctx, dl1.GUID)
+	if err != nil {
+		t.Fatalf("get dl1: %v", err)
+	}
+	got2, err := s.downloads.GetByGUID(ctx, dl2.GUID)
+	if err != nil {
+		t.Fatalf("get dl2: %v", err)
+	}
+
+	// Both must have advanced past StateDownloading — the SABnzbd handler
+	// reports Completed so the scanner sets StateCompleted and then attempts
+	// import (which fails with importBlocked because libraryDir is empty, but
+	// status is no longer downloading).
+	if got1.Status == models.StateDownloading {
+		t.Errorf("dl1 was never polled: status still %q", got1.Status)
+	}
+	if got2.Status == models.StateDownloading {
+		t.Errorf("dl2 was never polled: status still %q (Bug #1: only first client was polled)", got2.Status)
+	}
+}
+
 func TestCheckTransmissionDownloads_StoppedWithoutErrorDoesNotFail(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.URL.Path != "/transmission/rpc" {
