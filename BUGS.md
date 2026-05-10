@@ -115,7 +115,7 @@ setting, defaulting to 60 s.
 
 ---
 
-## Bug 6: Default import mode is `move`, which destroys seeding
+## Bug 6: Default import mode is `move`, which destroys seeding ✓ Fixed
 
 **File:** `internal/importer/scanner.go` — `importMode()`
 
