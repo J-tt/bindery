@@ -121,6 +121,19 @@ func (s *Scanner) primarySeriesFor(ctx context.Context, book *models.Book) (seri
 	return title, pos
 }
 
+// effectiveAudiobookDir returns the audiobook library root to use for the given
+// author. Priority: (1) author's explicit AudiobookRootFolderID, (2) global
+// audiobookDir from env-var (BINDERY_AUDIOBOOK_DIR). There is no system-wide
+// default audiobook root folder setting — the env var already serves that role.
+func (s *Scanner) effectiveAudiobookDir(ctx context.Context, author *models.Author) string {
+	if author != nil && author.AudiobookRootFolderID != nil && s.rootFolders != nil {
+		if rf, err := s.rootFolders.GetByID(ctx, *author.AudiobookRootFolderID); err == nil && rf != nil {
+			return rf.Path
+		}
+	}
+	return s.audiobookDir
+}
+
 // effectiveLibraryDir returns the library root to use for the given author.
 // Priority: (1) author's explicit RootFolderID, (2) library.defaultRootFolderId
 // setting, (3) global libraryDir from env-var.
@@ -690,14 +703,12 @@ func (s *Scanner) tryImportInternal(ctx context.Context, dl *models.Download, do
 	// Audiobook path: place the entire download directory as a unit so
 	// multi-part m4b/mp3 files, cover art, and cue sheets stay together.
 	if detectedFormat == models.MediaTypeAudiobook {
-		// audiobookRoot always starts from BINDERY_AUDIOBOOK_DIR (set at
-		// startup). effectiveLibraryDir is format-agnostic — it resolves the
-		// per-author ebook root folder — so applying it here would send
-		// audiobooks into the ebook root whenever the author has any custom
-		// root folder assigned, silently ignoring BINDERY_AUDIOBOOK_DIR
-		// (#421). Until a per-author audiobook root folder field exists we
-		// leave audiobookRoot as-is.
-		audiobookRoot := s.audiobookDir
+		// effectiveAudiobookDir resolves the per-author audiobook root folder
+		// (AudiobookRootFolderID) when set, falling back to the global
+		// BINDERY_AUDIOBOOK_DIR. This is intentionally separate from
+		// effectiveLibraryDir (the ebook root) so that setting a per-author
+		// ebook root folder never accidentally redirects audiobooks (#421).
+		audiobookRoot := s.effectiveAudiobookDir(ctx, author)
 		seriesTitle, seriesNum := s.primarySeriesFor(ctx, book)
 		audiobookDest, destErr := s.renamer.AudiobookDestDir(audiobookRoot, author, book, seriesTitle, seriesNum)
 		if destErr != nil {

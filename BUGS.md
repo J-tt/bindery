@@ -167,7 +167,7 @@ are capped and do not loop forever on persistently broken imports.
 
 ---
 
-## Bug 8: No per-author audiobook root folder — acknowledged as TODO in source
+## Bug 8: No per-author audiobook root folder ✓ Fixed (migration 038, AudiobookRootFolderID)
 
 **File:** `internal/importer/scanner.go` lines 600–606 (comment references issue #421)
 
@@ -179,8 +179,12 @@ separate ABS library folder structure) has no way to configure this.
 
 **Workaround:** None. All audiobooks go to a single directory.
 
-**Fix:** Add a per-author `audiobook_root_folder_id` column (parallel to the existing
-`root_folder_id`). The code comment at line 605 explicitly calls this out.
+**Fix:** Added `audiobook_root_folder_id` column to `authors` (migration 038) and
+`AudiobookRootFolderID *int64` field to `models.Author`. A new `effectiveAudiobookDir()`
+method on Scanner resolves the per-author folder when set, falling back to the global
+`BINDERY_AUDIOBOOK_DIR`. The ebook `effectiveLibraryDir()` path is unchanged so assigning
+an ebook root folder never accidentally redirects audiobooks (#421). API Create and Update
+handlers accept `audiobookRootFolderId` in the request body.
 
 ---
 

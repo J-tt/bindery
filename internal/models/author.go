@@ -18,6 +18,7 @@ type Author struct {
 	QualityProfileID      *int64     `json:"qualityProfileId"`
 	MetadataProfileID     *int64     `json:"metadataProfileId"`
 	RootFolderID          *int64     `json:"rootFolderId"`
+	AudiobookRootFolderID *int64     `json:"audiobookRootFolderId"`
 	MetadataProvider      string     `json:"metadataProvider"`
 	LastMetadataRefreshAt *time.Time `json:"lastMetadataRefreshAt"`
 	CreatedAt             time.Time  `json:"createdAt"`
