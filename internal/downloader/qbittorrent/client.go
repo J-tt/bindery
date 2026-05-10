@@ -35,7 +35,8 @@ type Client struct {
 	username string
 	password string
 	http     *http.Client
-	mu       sync.Mutex
+	mu       sync.Mutex // guards loggedIn
+	addMu    sync.Mutex // serialises AddTorrent: keeps before/after hash diff atomic
 	loggedIn bool
 }
 
@@ -102,6 +103,14 @@ func (c *Client) Test(ctx context.Context) error {
 // AddTorrent submits a magnet link or torrent URL to qBittorrent for download
 // and returns the torrent hash when it can be determined.
 func (c *Client) AddTorrent(ctx context.Context, magnetOrURL, category, savePath string) (string, error) {
+	// Serialise concurrent AddTorrent calls so that each goroutine's
+	// before-snapshot → submit → poll sequence is atomic. Without this, two
+	// concurrent calls both snapshot an identical beforeSet, both submit their
+	// torrents, and then both resolve to the same "newest" torrent hash — the
+	// root cause of Bug 2.
+	c.addMu.Lock()
+	defer c.addMu.Unlock()
+
 	// Snapshot all existing hashes (unfiltered) so we can detect newly-added
 	// items regardless of which category qBittorrent assigns them initially.
 	// For indirect URLs (e.g. Prowlarr Torznab redirects), qBittorrent must

@@ -12,6 +12,89 @@ import (
 	"time"
 )
 
+// TestAddTorrent_ConcurrentUniqueHashes is a regression test for Bug 2.
+// When AddTorrent is called concurrently (e.g. during a bulk grab), each call
+// must return its own unique torrent hash. Without serialisation, both
+// goroutines snapshot beforeSet while it is empty, both torrents are submitted,
+// and both goroutines resolve to the same "newest" torrent (highest AddedOn) —
+// leaving one download record permanently mapped to the wrong hash.
+func TestAddTorrent_ConcurrentUniqueHashes(t *testing.T) {
+	const (
+		hashA = "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+		hashB = "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+	)
+
+	var mu sync.Mutex
+	addedCount := 0
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v2/auth/login":
+			_, _ = w.Write([]byte("Ok."))
+		case "/api/v2/torrents/info":
+			mu.Lock()
+			count := addedCount
+			mu.Unlock()
+
+			var torrents []Torrent
+			if count >= 1 {
+				torrents = append(torrents, Torrent{Hash: hashA, Name: "Book A", AddedOn: 1000})
+			}
+			if count >= 2 {
+				torrents = append(torrents, Torrent{Hash: hashB, Name: "Book B", AddedOn: 2000})
+			}
+			body, _ := json.Marshal(torrents)
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write(body)
+		case "/api/v2/torrents/add":
+			// Sleep long enough to guarantee both goroutines complete their
+			// initial "before" GetTorrents snapshots before any add is
+			// acknowledged, reliably opening the race window.
+			time.Sleep(20 * time.Millisecond)
+			mu.Lock()
+			addedCount++
+			mu.Unlock()
+			_, _ = w.Write([]byte("Ok."))
+		}
+	}))
+	defer srv.Close()
+
+	c := newTestClient(srv.URL, "admin", "pass")
+	c.loggedIn = true
+
+	var wg sync.WaitGroup
+	results := make([]string, 2)
+	errs := make([]error, 2)
+
+	for i := range results {
+		i := i
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			results[i], errs[i] = c.AddTorrent(
+				context.Background(),
+				"http://example.com/book.torrent",
+				"", "",
+			)
+		}()
+	}
+	wg.Wait()
+
+	for i, err := range errs {
+		if err != nil {
+			t.Fatalf("goroutine %d: %v", i, err)
+		}
+	}
+
+	if results[0] == results[1] {
+		t.Errorf("bug 2 race: both concurrent AddTorrent calls returned %q; each must return a unique hash", results[0])
+	}
+	got := map[string]bool{results[0]: true, results[1]: true}
+	if !got[hashA] || !got[hashB] {
+		t.Errorf("want one goroutine to get %q and the other %q, got %q and %q", hashA, hashB, results[0], results[1])
+	}
+}
+
 // logCatcher captures slog records for test assertions.
 type logCatcher struct {
 	mu      sync.Mutex

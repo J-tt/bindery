@@ -23,9 +23,9 @@ This prevents the other client from being monitored automatically.
 
 ---
 
-## Bug 2: Torrent hash race condition — multiple downloads get the same wrong hash
+## Bug 2: Torrent hash race condition — multiple downloads get the same wrong hash ✓ Fixed
 
-**File:** `internal/downloader/qbittorrent/` (send / hash-fetch logic)
+**File:** `internal/downloader/qbittorrent/client.go` — `AddTorrent()`
 
 **Description:** When Bindery sends several torrents to qBittorrent in rapid succession (e.g.
 from a bulk search result), the "get last-added torrent hash" call races. All downloads in
@@ -44,8 +44,9 @@ UPDATE downloads SET torrent_id='<real-hash>' WHERE id=<id>;
 UPDATE downloads SET status='downloading' WHERE id=<id>;
 ```
 
-**Fix:** After each `AddTorrent` call, poll until a torrent with a new hash appears rather
-than reading a shared "last hash" field.
+**Fix:** `AddTorrent` now holds `addMu` (a new `sync.Mutex` on `Client`) for the entire
+before-snapshot → submit → poll sequence. Concurrent calls are serialised, so each call's
+before/after hash-set diff only ever sees the single torrent it submitted.
 
 ---
 
