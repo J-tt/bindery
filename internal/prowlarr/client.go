@@ -19,12 +19,18 @@ type Client struct {
 	http    *http.Client
 }
 
-// New creates a Prowlarr client.
+// New creates a Prowlarr client with a 60 s default timeout.
 func New(baseURL, apiKey string) *Client {
+	return NewWithTimeout(baseURL, apiKey, 60*time.Second)
+}
+
+// NewWithTimeout creates a Prowlarr client with a custom HTTP timeout.
+// Use this when the caller has read a user-configured timeout from settings.
+func NewWithTimeout(baseURL, apiKey string, timeout time.Duration) *Client {
 	return &Client{
 		baseURL: strings.TrimRight(baseURL, "/"),
 		apiKey:  apiKey,
-		http:    &http.Client{Timeout: 15 * time.Second},
+		http:    &http.Client{Timeout: timeout},
 	}
 }
 

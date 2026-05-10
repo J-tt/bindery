@@ -300,6 +300,7 @@ func main() {
 	// Prowlarr startup sync: kick off sync for all enabled instances that have
 	// sync_on_startup set. Runs concurrently so it doesn't block server start.
 	{
+		prowlarrTimeout := api.LoadProwlarrTimeout(context.Background(), settingsRepo)
 		instances, _ := prowlarrRepo.List(context.Background())
 		for _, inst := range instances {
 			if !inst.Enabled || !inst.SyncOnStartup {
@@ -307,7 +308,7 @@ func main() {
 			}
 			inst := inst // capture
 			go func() {
-				client := prowlarr.New(inst.URL, inst.APIKey)
+				client := prowlarr.NewWithTimeout(inst.URL, inst.APIKey, prowlarrTimeout)
 				syncer := prowlarr.NewSyncer(client, indexerRepo, prowlarrRepo)
 				if _, err := syncer.Sync(context.Background(), inst.ID); err != nil {
 					slog.Warn("prowlarr startup sync failed", "instance", inst.Name, "error", err)
@@ -421,7 +422,7 @@ func main() {
 	backupHandler := api.NewBackupHandler(cfg.DBPath, cfg.DataDir)
 	rootFolderHandler := api.NewRootFolderHandler(rootFolderRepo)
 	logHandler := api.NewLogHandler(ring).WithLogRepo(logRepo)
-	prowlarrHandler := api.NewProwlarrHandler(prowlarrRepo, indexerRepo)
+	prowlarrHandler := api.NewProwlarrHandler(prowlarrRepo, indexerRepo).WithSettings(settingsRepo)
 	calibreHandler := api.NewCalibreHandler(settingsRepo)
 	grimmoryHandler := api.NewGrimmoryHandler(settingsRepo).WithVersion(version)
 	absHandler := api.NewABSHandler(settingsRepo).WithVersion(version)

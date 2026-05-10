@@ -6,7 +6,22 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
+
+func TestNew_DefaultTimeout(t *testing.T) {
+	c := New("http://prowlarr.local:9696", "key")
+	if c.http.Timeout != 60*time.Second {
+		t.Errorf("default timeout = %v, want 60s", c.http.Timeout)
+	}
+}
+
+func TestNewWithTimeout(t *testing.T) {
+	c := NewWithTimeout("http://prowlarr.local:9696", "key", 30*time.Second)
+	if c.http.Timeout != 30*time.Second {
+		t.Errorf("timeout = %v, want 30s", c.http.Timeout)
+	}
+}
 
 func TestNew_StripTrailingSlash(t *testing.T) {
 	c := New("http://prowlarr.local:9696/", "key")

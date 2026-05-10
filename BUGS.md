@@ -100,7 +100,7 @@ the login endpoint specifically (there is no session to protect at that point).
 
 ---
 
-## Bug 5: Prowlarr client search timeout hardcoded at 15 s — too short for Usenet indexers
+## Bug 5: Prowlarr client search timeout hardcoded at 15 s — too short for Usenet indexers ✓ Fixed
 
 **File:** `internal/prowlarr/client.go`
 
@@ -111,8 +111,10 @@ proxy. All Usenet searches time out silently.
 **Workaround:** Route Prowlarr requests directly to its internal address (not via Caddy)
 to reduce per-hop latency. No fix available without recompiling.
 
-**Fix:** Expose a `prowlarr.search_timeout_seconds` (or global `http.timeout_seconds`)
-setting, defaulting to 60 s.
+**Fix:** Default raised from 15 s → 60 s. A new `prowlarr.NewWithTimeout` constructor lets
+callers override the timeout. `ProwlarrHandler` and the startup-sync goroutine both read the
+`prowlarr.search_timeout_seconds` setting (stored in SQLite) and pass it through; the setting
+defaults to 60 s when absent.
 
 ---
 
