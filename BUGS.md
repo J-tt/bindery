@@ -49,7 +49,7 @@ than reading a shared "last hash" field.
 
 ---
 
-## Bug 3: Fallback to save_path root causes entire download directory to be imported
+## Bug 3: Fallback to save_path root causes entire download directory to be imported ✓ Fixed in 62c9874
 
 **File:** `internal/importer/scanner.go` lines 478–483
 
