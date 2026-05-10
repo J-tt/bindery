@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { api, Series, SeriesHardcoverLink, SeriesHardcoverSearchResult } from '../api/client'
+import { api, type Series, type SeriesHardcoverLink, type SeriesHardcoverSearchResult } from '../api/client'
 
 interface HardcoverSeriesLinkModalProps {
   series: Series
@@ -22,7 +22,7 @@ export default function HardcoverSeriesLinkModal({ series, initialResults, onClo
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const currentLinkId = series.hardcoverLink?.id
+  const _currentLinkId = series.hardcoverLink?.id
   const initialResultsCount = initialResults?.length ?? 0
 
   useEffect(() => {
@@ -31,7 +31,7 @@ export default function HardcoverSeriesLinkModal({ series, initialResults, onClo
     setSelectedId(initialResults?.[0]?.foreignId ?? '')
     setCurrentLink(series.hardcoverLink ?? null)
     setError(null)
-  }, [series.id, series.title, currentLinkId, initialResultsCount])
+  }, [series.title, initialResults, series.hardcoverLink])
 
   useEffect(() => {
     let cancelled = false
@@ -45,7 +45,7 @@ export default function HardcoverSeriesLinkModal({ series, initialResults, onClo
     return () => {
       cancelled = true
     }
-  }, [series.id, currentLinkId])
+  }, [series.id, series.hardcoverLink])
 
   useEffect(() => {
     const term = query.trim()
@@ -82,7 +82,7 @@ export default function HardcoverSeriesLinkModal({ series, initialResults, onClo
       cancelled = true
       window.clearTimeout(timer)
     }
-  }, [query, series.id, series.title, initialResultsCount])
+  }, [query, series.title, initialResultsCount])
 
   const selected = results.find(result => result.foreignId === selectedId)
 
@@ -163,7 +163,6 @@ export default function HardcoverSeriesLinkModal({ series, initialResults, onClo
             onChange={e => setQuery(e.target.value)}
             placeholder="Search Hardcover series"
             className="w-full bg-slate-200 dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-emerald-500"
-            autoFocus
           />
 
           {error && <p className="text-sm text-rose-600 dark:text-rose-400">{error}</p>}

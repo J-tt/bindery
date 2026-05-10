@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { api, Author } from '../api/client'
+import { api, type Author } from '../api/client'
 
 interface Props {
   authors: Author[]

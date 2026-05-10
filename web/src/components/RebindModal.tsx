@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { api, Book } from '../api/client'
+import { api, type Book } from '../api/client'
 
 interface AuthorMismatch {
   currentAuthor: string
@@ -125,7 +125,6 @@ export default function RebindModal({ book, onClose, onSuccess }: Props) {
                 placeholder={provider === 'openlibrary' ? 'e.g. OL12345W' : 'e.g. hc:12345'}
                 disabled={submitting}
                 className="w-full bg-slate-100 dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded px-3 py-1.5 text-sm focus:outline-none focus:border-slate-400 dark:focus:border-zinc-500 disabled:opacity-50"
-                autoFocus
               />
               <p className="mt-1 text-xs text-slate-500 dark:text-zinc-500">
                 {provider === 'openlibrary'

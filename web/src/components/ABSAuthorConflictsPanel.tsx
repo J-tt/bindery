@@ -1,4 +1,4 @@
-import { ABSMetadataConflict } from '../api/client'
+import type { ABSMetadataConflict } from '../api/client'
 
 type Props = {
   title: string

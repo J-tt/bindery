@@ -1,5 +1,5 @@
-import { createContext, useContext, useEffect, useState, ReactNode, useCallback } from 'react'
-import { api, AuthStatus, initCSRF } from '../api/client'
+import { createContext, useContext, useEffect, useState, type ReactNode, useCallback } from 'react'
+import { api, type AuthStatus, initCSRF } from '../api/client'
 
 interface AuthContextValue {
   status: AuthStatus | null

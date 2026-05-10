@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { api, Recommendation } from '../api/client'
+import { api, type Recommendation } from '../api/client'
 import RecommendationRow from '../components/RecommendationRow'
 
 const ROW_ORDER: Array<{ type: string; labelKey: string }> = [
@@ -108,10 +108,10 @@ export default function DiscoverPage() {
   }
 
   // Detect cold start: have series/author_new but no genre_similar/genre_popular
-  const hasSeries = (grouped['series']?.length ?? 0) > 0
-  const hasAuthorNew = (grouped['author_new']?.length ?? 0) > 0
-  const hasGenreSimilar = (grouped['genre_similar']?.length ?? 0) > 0
-  const hasGenrePopular = (grouped['genre_popular']?.length ?? 0) > 0
+  const hasSeries = (grouped.series?.length ?? 0) > 0
+  const hasAuthorNew = (grouped.author_new?.length ?? 0) > 0
+  const hasGenreSimilar = (grouped.genre_similar?.length ?? 0) > 0
+  const hasGenrePopular = (grouped.genre_popular?.length ?? 0) > 0
   const isColdStart = (hasSeries || hasAuthorNew) && !hasGenreSimilar && !hasGenrePopular
 
   const hasAnyRecs = recs.length > 0

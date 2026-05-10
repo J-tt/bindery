@@ -1,12 +1,12 @@
 import { useState, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
-import { api, SearchResult } from '../api/client'
+import { api, type SearchResult } from '../api/client'
 
 function formatSize(n: number): string {
   if (!n || n <= 0) return ''
-  if (n >= 1073741824) return (n / 1073741824).toFixed(1) + ' GB'
-  if (n >= 1048576) return (n / 1048576).toFixed(0) + ' MB'
-  return (n / 1024).toFixed(0) + ' KB'
+  if (n >= 1073741824) return `${(n / 1073741824).toFixed(1)} GB`
+  if (n >= 1048576) return `${(n / 1048576).toFixed(0)} MB`
+  return `${(n / 1024).toFixed(0)} KB`
 }
 
 export default function SearchPage() {
@@ -68,7 +68,6 @@ export default function SearchPage() {
           onChange={e => setQuery(e.target.value)}
           placeholder={t('search.placeholder')}
           className="flex-1 bg-slate-100 dark:bg-zinc-900 border border-slate-300 dark:border-zinc-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-slate-400 dark:focus:border-zinc-500"
-          autoFocus
         />
         <button
           type="submit"

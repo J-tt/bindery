@@ -1,4 +1,4 @@
-import { Recommendation } from '../api/client'
+import type { Recommendation } from '../api/client'
 import RecommendationCard from './RecommendationCard'
 
 interface RecommendationRowProps {

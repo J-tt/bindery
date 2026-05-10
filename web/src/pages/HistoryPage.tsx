@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { api, HistoryEvent } from '../api/client'
+import { api, type HistoryEvent } from '../api/client'
 import Pagination from '../components/Pagination'
 import { usePagination } from '../components/usePagination'
 
@@ -30,9 +30,9 @@ function parseEventData(data: string): { message?: string; path?: string; size?:
 
 function formatSize(n: number): string {
   if (!n || n <= 0) return ''
-  if (n >= 1073741824) return (n / 1073741824).toFixed(1) + ' GB'
-  if (n >= 1048576) return (n / 1048576).toFixed(0) + ' MB'
-  return (n / 1024).toFixed(0) + ' KB'
+  if (n >= 1073741824) return `${(n / 1073741824).toFixed(1)} GB`
+  if (n >= 1048576) return `${(n / 1048576).toFixed(0)} MB`
+  return `${(n / 1024).toFixed(0)} KB`
 }
 
 // Detect media type from the release title — ebook formats vs audiobook
@@ -88,7 +88,7 @@ export default function HistoryPage() {
 
   const { pageItems, paginationProps, reset } = usePagination(events, 100, 'history')
 
-  useEffect(() => { reset() }, [typeFilter, reset])
+  useEffect(() => { reset() }, [reset])
 
   return (
     <div>

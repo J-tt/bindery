@@ -1,6 +1,6 @@
-import { FormEvent, useEffect, useRef, useState } from 'react'
+import { type FormEvent, useCallback, useEffect, useRef, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { api, ABSConfig, ABSImportProgress, ABSImportRun, ABSLibrary, ABSMetadataConflict, ABSReviewItem, ABSRollbackAction, ABSRollbackResult, ABSTestResult, GrimmoryConfig, GrimmoryTestResult, AuthConfig, AuthStatus, BlocklistEntry, Indexer, IndexerTestResult, ProwlarrInstance, DownloadClient, NotificationConfig, QualityProfile, MetadataProfile, CalibreImportProgress, CalibreSyncProgress, RootFolder, LogEntry, ImportList, HardcoverList, HardcoverTestResult, Author, Book, SystemStatus } from '../api/client'
+import { api, type ABSConfig, type ABSImportProgress, type ABSImportRun, type ABSLibrary, type ABSMetadataConflict, type ABSReviewItem, type ABSRollbackAction, type ABSRollbackResult, type ABSTestResult, type GrimmoryConfig, type GrimmoryTestResult, type AuthConfig, type AuthStatus, type BlocklistEntry, type Indexer, type IndexerTestResult, type ProwlarrInstance, type DownloadClient, type NotificationConfig, type QualityProfile, type MetadataProfile, type CalibreImportProgress, type CalibreSyncProgress, type RootFolder, type LogEntry, type ImportList, type HardcoverList, type HardcoverTestResult, type Author, type Book, type SystemStatus } from '../api/client'
 import AuthSettings from '../settings/AuthSettings'
 import Pagination from '../components/Pagination'
 import ABSConflictPanel from '../components/ABSAuthorConflictsPanel'
@@ -60,18 +60,7 @@ export default function SettingsPage() {
     return () => { document.title = 'Bindery' }
   }, [])
 
-  useEffect(() => {
-    if (tab === 'notifications') api.listNotifications().then(setNotifications).catch(console.error)
-    if (tab === 'quality') api.listQualityProfiles().then(setQualityProfiles).catch(console.error)
-    if (tab === 'metadata') api.listMetadataProfiles().then(setMetadataProfiles).catch(console.error)
-    if (tab === 'rootfolders') api.listRootFolders().then(setRootFolders).catch(console.error)
-    if (tab === 'logs') {
-      api.getLogLevel().then(r => setLogLevel(r.level.toLowerCase())).catch(console.error)
-      fetchLogs()
-    }
-  }, [tab]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  const fetchLogs = (page = 0) => {
+  const fetchLogs = useCallback((page = 0) => {
     api.getLogs({
       level: logFilter !== 'all' ? logFilter : undefined,
       component: logComponent || undefined,
@@ -84,20 +73,31 @@ export default function SettingsPage() {
       setLogEntries(entries ?? [])
       setLogPage(page)
     }).catch(console.error)
-  }
+  }, [logFilter, logComponent, logFrom, logTo, logSearch])
+
+  useEffect(() => {
+    if (tab === 'notifications') api.listNotifications().then(setNotifications).catch(console.error)
+    if (tab === 'quality') api.listQualityProfiles().then(setQualityProfiles).catch(console.error)
+    if (tab === 'metadata') api.listMetadataProfiles().then(setMetadataProfiles).catch(console.error)
+    if (tab === 'rootfolders') api.listRootFolders().then(setRootFolders).catch(console.error)
+    if (tab === 'logs') {
+      api.getLogLevel().then(r => setLogLevel(r.level.toLowerCase())).catch(console.error)
+      fetchLogs()
+    }
+  }, [tab, fetchLogs])
 
   // Auto-refresh logs every 5 s while the tab is active and toggle is on.
   useEffect(() => {
     if (tab !== 'logs' || !logAutoRefresh) return
     const id = setInterval(() => { fetchLogs(logPage) }, 5000)
     return () => clearInterval(id)
-  }, [tab, logAutoRefresh, logPage, logFilter, logComponent, logFrom, logTo, logSearch]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [tab, logAutoRefresh, logPage, fetchLogs])
 
   function formatBytes(bytes: number): string {
     if (bytes === 0) return '0 B'
     const units = ['B', 'KB', 'MB', 'GB', 'TB']
     const i = Math.floor(Math.log(bytes) / Math.log(1024))
-    return `${(bytes / Math.pow(1024, i)).toFixed(1)} ${units[i]}`
+    return `${(bytes / 1024 ** i).toFixed(1)} ${units[i]}`
   }
 
   return (
@@ -489,8 +489,8 @@ export default function SettingsPage() {
                   </div>
                   {p.items && p.items.length > 0 && (
                     <div className="flex flex-wrap gap-1.5 mt-2">
-                      {p.items.map((item, i) => (
-                        <span key={i} className={`text-[10px] px-2 py-0.5 rounded ${item.allowed ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-200 dark:bg-zinc-800 text-slate-500 dark:text-zinc-600'}`}>
+                      {p.items.map((item) => (
+                        <span key={item.quality} className={`text-[10px] px-2 py-0.5 rounded ${item.allowed ? 'bg-emerald-500/20 text-emerald-400' : 'bg-slate-200 dark:bg-zinc-800 text-slate-500 dark:text-zinc-600'}`}>
                           {item.quality}
                         </span>
                       ))}
@@ -1188,7 +1188,7 @@ function AudiobookshelfSection() {
   const [resolvingConflictId, setResolvingConflictId] = useState<number | null>(null)
   const [relinkingAuthorId, setRelinkingAuthorId] = useState<number | null>(null)
 
-  const applyConfig = (next: ABSConfig) => {
+  const applyConfig = useCallback((next: ABSConfig) => {
     setConfig(next)
     setDraft(prev => ({
       ...prev,
@@ -1199,9 +1199,9 @@ function AudiobookshelfSection() {
       libraryId: next.libraryId ?? '',
       pathRemap: next.pathRemap ?? '',
     }))
-  }
+  }, [])
 
-  const refreshConflicts = async () => {
+  const refreshConflicts = useCallback(async () => {
     try {
       setConflictError(null)
       const page = await api.absConflicts()
@@ -1209,9 +1209,9 @@ function AudiobookshelfSection() {
     } catch (err: unknown) {
       setConflictError(err instanceof Error ? err.message : 'Failed to load enrichment conflicts')
     }
-  }
+  }, [])
 
-  const refreshReviewItems = async () => {
+  const refreshReviewItems = useCallback(async () => {
     try {
       setReviewError(null)
       const page = await api.absReviewItems()
@@ -1219,15 +1219,15 @@ function AudiobookshelfSection() {
     } catch (err: unknown) {
       setReviewError(err instanceof Error ? err.message : 'Failed to load review items')
     }
-  }
+  }, [])
 
-  const refreshRuns = async () => {
+  const refreshRuns = useCallback(async () => {
     try {
       setRuns(await api.absImportRuns())
     } catch {
       setRuns([])
     }
-  }
+  }, [])
 
   const loadLibraries = async (payload?: { baseUrl?: string; apiKey?: string }) => {
     setListing(true)
@@ -1261,7 +1261,7 @@ function AudiobookshelfSection() {
     refreshRuns().catch(() => {})
     refreshReviewItems().catch(() => {})
     refreshConflicts().catch(() => {})
-  }, [])
+  }, [applyConfig, refreshConflicts, refreshReviewItems, refreshRuns])
 
   useEffect(() => {
     if (!importProgress?.running) return
@@ -1276,7 +1276,7 @@ function AudiobookshelfSection() {
     refreshRuns().catch(() => {})
     refreshReviewItems().catch(() => {})
     refreshConflicts().catch(() => {})
-  }, [importProgress?.running, importProgress?.finishedAt])
+  }, [importProgress?.running, refreshConflicts, refreshReviewItems, refreshRuns])
 
   const probePayload = () => ({
     baseUrl: draft.baseUrl.trim(),
@@ -2482,7 +2482,7 @@ function GeneralTab() {
       setBackups(prev => [result.filename, ...prev])
       alert(`Backup created: ${result.filename}`)
     } catch (err) {
-      alert('Backup failed: ' + (err instanceof Error ? err.message : 'Unknown error'))
+      alert(`Backup failed: ${err instanceof Error ? err.message : 'Unknown error'}`)
     } finally {
       setCreatingBackup(false)
     }
@@ -2521,7 +2521,7 @@ function GeneralTab() {
       }
       setTimeout(poll, 1000)
     } catch (err) {
-      setScanMessage('Scan failed: ' + (err instanceof Error ? err.message : 'Unknown error'))
+      setScanMessage(`Scan failed: ${err instanceof Error ? err.message : 'Unknown error'}`)
       setScanningLibrary(false)
     }
   }
@@ -2617,7 +2617,7 @@ function GeneralTab() {
             <p className="text-xs text-slate-600 dark:text-zinc-500 mb-2">{t('settings.general.audiobookTemplateHint')}</p>
             <div className="flex gap-2">
               <input
-                value={settings['naming_template_audiobook'] ?? ''}
+                value={settings.naming_template_audiobook ?? ''}
                 onChange={e => setSettings(s => ({ ...s, 'naming_template_audiobook': e.target.value }))}
                 placeholder="{Author}/{Title} ({Year})"
                 className="flex-1 bg-slate-200 dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-slate-400 dark:focus:border-zinc-600"
@@ -3061,7 +3061,7 @@ function GeneralTab() {
                 {window.location.origin}/opds
               </code>
               <button
-                onClick={() => navigator.clipboard.writeText(window.location.origin + '/opds')}
+                onClick={() => navigator.clipboard.writeText(`${window.location.origin}/opds`)}
                 className="px-3 py-1.5 bg-slate-600 hover:bg-slate-500 rounded text-xs font-medium flex-shrink-0"
               >
                 {t('settings.general.copy')}
@@ -3165,7 +3165,7 @@ function GeneralTab() {
 }
 
 function parseCats(s: string): number[] {
-  return s.split(',').map(t => parseInt(t.trim(), 10)).filter(n => !isNaN(n))
+  return s.split(',').map(t => parseInt(t.trim(), 10)).filter(n => !Number.isNaN(n))
 }
 
 function GrimmoryTab() {
@@ -3400,7 +3400,7 @@ function CalibreSection({
   // button can enable/disable without the user having to click Test
   // first. Re-probes whenever mode, url, or api key changes.
   const pluginURL = settings['calibre.plugin_url'] ?? ''
-  const pluginKey = settings['calibre.plugin_api_key'] ?? ''
+  const _pluginKey = settings['calibre.plugin_api_key'] ?? ''
   useEffect(() => {
     if (mode !== 'plugin' || !pluginURL) {
       setBridgeReachable(null)
@@ -3411,7 +3411,7 @@ function CalibreSection({
       .then(() => { if (!cancelled) setBridgeReachable(true) })
       .catch(() => { if (!cancelled) setBridgeReachable(false) })
     return () => { cancelled = true }
-  }, [mode, pluginURL, pluginKey])
+  }, [mode, pluginURL])
 
   // Poll while an import is running.
   useEffect(() => {
@@ -3955,8 +3955,8 @@ function EditClientForm({ client, onClose, onSaved }: { client: DownloadClient; 
 
   const submit = async () => {
     const data = isPasswordClient(type)
-      ? { ...client, name, type, host, port: parseInt(port), username: hasUsername(type) ? username : '', password: credential, apiKey: '', category, useSsl: useSSL, urlBase: urlBase.trim() }
-      : { ...client, name, type, host, port: parseInt(port), apiKey: credential, username: '', password: '', category, useSsl: useSSL, urlBase: urlBase.trim() }
+      ? { ...client, name, type, host, port: parseInt(port, 10), username: hasUsername(type) ? username : '', password: credential, apiKey: '', category, useSsl: useSSL, urlBase: urlBase.trim() }
+      : { ...client, name, type, host, port: parseInt(port, 10), apiKey: credential, username: '', password: '', category, useSsl: useSSL, urlBase: urlBase.trim() }
     const updated = await api.updateDownloadClient(client.id, data)
     onSaved(updated)
   }
@@ -4172,8 +4172,8 @@ function AddClientForm({ onClose, onAdded }: { onClose: () => void; onAdded: (c:
 
   const submit = async () => {
     const data = isPasswordClient(type)
-      ? { name, host, port: parseInt(port), username: hasUsername(type) ? username : '', password: credential, apiKey: '', category, type, enabled: true, useSsl: useSSL, urlBase: urlBase.trim() }
-      : { name, host, port: parseInt(port), apiKey: credential, username: '', password: '', category, type, enabled: true, useSsl: useSSL, urlBase: urlBase.trim() }
+      ? { name, host, port: parseInt(port, 10), username: hasUsername(type) ? username : '', password: credential, apiKey: '', category, type, enabled: true, useSsl: useSSL, urlBase: urlBase.trim() }
+      : { name, host, port: parseInt(port, 10), apiKey: credential, username: '', password: '', category, type, enabled: true, useSsl: useSSL, urlBase: urlBase.trim() }
     const c = await api.addDownloadClient(data)
     onAdded(c)
   }
@@ -4307,11 +4307,11 @@ function SecuritySection() {
   const [savingMode, setSavingMode] = useState(false)
   const [copied, setCopied] = useState(false)
 
-  const loadCfg = () => {
+  const loadCfg = useCallback(() => {
     api.authConfig().then(setCfg).catch(console.error)
-  }
+  }, [])
 
-  useEffect(() => { loadCfg() }, [])
+  useEffect(() => { loadCfg() }, [loadCfg])
 
   const regenerate = async () => {
     if (!confirm('Regenerate the API key? Existing integrations using the old key will stop working.')) return
@@ -4321,7 +4321,7 @@ function SecuritySection() {
       setCfg(c => c ? { ...c, apiKey: r.apiKey } : c)
       setShowKey(true)
     } catch (e) {
-      alert('Regenerate failed: ' + (e instanceof Error ? e.message : 'unknown'))
+      alert(`Regenerate failed: ${e instanceof Error ? e.message : 'unknown'}`)
     } finally {
       setRegenerating(false)
     }
@@ -4334,7 +4334,7 @@ function SecuritySection() {
       await refresh()
       loadCfg()
     } catch (e) {
-      alert('Mode change failed: ' + (e instanceof Error ? e.message : 'unknown'))
+      alert(`Mode change failed: ${e instanceof Error ? e.message : 'unknown'}`)
     } finally {
       setSavingMode(false)
     }
@@ -4417,12 +4417,12 @@ function BlocklistTab() {
   const [selected, setSelected] = useState<Set<number>>(new Set())
   const [deleting, setDeleting] = useState(false)
 
-  const load = () => {
+  const load = useCallback(() => {
     setLoading(true)
     api.listBlocklist().then(setEntries).catch(console.error).finally(() => setLoading(false))
-  }
+  }, [])
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, [load])
 
   const handleDelete = async (id: number) => {
     await api.deleteBlocklistEntry(id).catch(console.error)

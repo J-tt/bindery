@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState, useMemo } from 'react'
+import { useCallback, useEffect, useRef, useState, useMemo } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { api, Author, MediaType } from '../api/client'
+import { api, type Author, type MediaType } from '../api/client'
 import AddAuthorModal from '../components/AddAuthorModal'
 import AddBookModal from '../components/AddBookModal'
 import MergeAuthorsModal from '../components/MergeAuthorsModal'
@@ -38,12 +38,12 @@ export default function AuthorsPage() {
   const [bulkBusy, setBulkBusy] = useState(false)
   const selectAllRef = useRef<HTMLInputElement>(null)
 
-  const load = () => {
+  const load = useCallback(() => {
     setLoading(true)
     api.listAuthors().then(setAuthors).catch(console.error).finally(() => setLoading(false))
-  }
+  }, [])
 
-  useEffect(() => { load() }, [])
+  useEffect(() => { load() }, [load])
 
   useEffect(() => {
     try { localStorage.setItem('bindery.filter.authors.monitored', monitoredFilter) } catch { /* ignore */ }
@@ -78,7 +78,7 @@ export default function AuthorsPage() {
       const q = search.trim().toLowerCase()
       list = list.filter(a =>
         a.authorName.toLowerCase().includes(q) ||
-        (a.description && a.description.toLowerCase().includes(q))
+        (a.description?.toLowerCase().includes(q))
       )
     }
     if (sort === 'az') list = [...list].sort((a, b) => a.authorName.localeCompare(b.authorName))
@@ -88,7 +88,7 @@ export default function AuthorsPage() {
 
   const { pageItems, paginationProps, reset } = usePagination(filtered, 50, 'authors')
 
-  useEffect(() => { reset() }, [search, sort, monitoredFilter, reset])
+  useEffect(() => { reset() }, [reset])
 
   // Keep the select-all checkbox indeterminate state in sync.
   const allPageSelected = pageItems.length > 0 && pageItems.every(a => selectedIds.has(a.id))

@@ -1,4 +1,4 @@
-import { FormEvent, useState } from 'react'
+import { type FormEvent, useState } from 'react'
 
 interface Props {
   title: string
@@ -55,7 +55,6 @@ export default function SeriesNameModal({ title, initialName = '', submitLabel, 
             onChange={e => setName(e.target.value)}
             placeholder="Series name"
             className="w-full bg-slate-200 dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-emerald-500"
-            autoFocus
           />
           {error && <p className="text-sm text-red-500">{error}</p>}
         </div>

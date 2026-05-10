@@ -1,9 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
 import ViewToggle from '../components/ViewToggle'
 import { useView } from '../components/useView'
-import { api, Book } from '../api/client'
+import { api, type Book } from '../api/client'
 import BulkActionBar from '../components/BulkActionBar'
 import Pagination from '../components/Pagination'
 import { usePagination } from '../components/usePagination'
@@ -40,13 +40,13 @@ export default function BooksPage() {
   const [bulkBusy, setBulkBusy] = useState(false)
   const selectAllRef = useRef<HTMLInputElement>(null)
 
-  const load = () => {
+  const load = useCallback(() => {
     api.listBooks().then(setBooks).catch(console.error).finally(() => setLoading(false))
-  }
+  }, [])
 
   useEffect(() => {
     load()
-  }, [])
+  }, [load])
 
   const filtered = useMemo(() => {
     let list = books
@@ -63,7 +63,7 @@ export default function BooksPage() {
       const q = search.trim().toLowerCase()
       list = list.filter(b =>
         b.title.toLowerCase().includes(q) ||
-        (b.author?.authorName && b.author.authorName.toLowerCase().includes(q))
+        (b.author?.authorName?.toLowerCase().includes(q))
       )
     }
     if (sort === 'title-az') list = [...list].sort((a, b) => a.title.localeCompare(b.title))
@@ -85,7 +85,7 @@ export default function BooksPage() {
 
   const { pageItems, paginationProps, reset } = usePagination(filtered, 50, 'books')
 
-  useEffect(() => { reset() }, [statusFilter, mediaFilter, search, sort, reset])
+  useEffect(() => { reset() }, [reset])
 
   // Keep the select-all checkbox indeterminate state in sync.
   const allPageSelected = pageItems.length > 0 && pageItems.every(b => selectedIds.has(b.id))
@@ -219,7 +219,7 @@ export default function BooksPage() {
                   <tr
                     key={book.id}
                     className={`hover:bg-slate-200/50 dark:hover:bg-zinc-800/50 cursor-pointer ${selectedIds.has(book.id) ? 'bg-emerald-500/10 dark:bg-emerald-500/10' : 'bg-slate-100/50 dark:bg-zinc-900/50'}`}
-                    onClick={() => (window.location.href = `/book/${book.id}`)}
+                    onClick={() => { window.location.href = `/book/${book.id}` }}
                   >
                     <td className="px-3 py-2 w-8" onClick={e => e.stopPropagation()}>
                       <input

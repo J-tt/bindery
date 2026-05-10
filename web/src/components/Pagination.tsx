@@ -49,6 +49,7 @@ export default function Pagination({
         <button onClick={() => onPageChange(page - 1)} disabled={page === 1} className={btn}>‹ {t('pagination.previous')}</button>
         {pages.map((p, i) =>
           p === 'ellipsis' ? (
+            // biome-ignore lint/suspicious/noArrayIndexKey: ellipsis slots are positional
             <span key={`e${i}`} className="px-1 text-xs text-slate-500 dark:text-zinc-600">…</span>
           ) : (
             <button key={p} onClick={() => onPageChange(p)} className={p === page ? btnActive : btn}>

@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, fireEvent } from '@testing-library/react'
 import RecommendationCard from './RecommendationCard'
-import { Recommendation } from '../api/client'
+import type { Recommendation } from '../api/client'
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({

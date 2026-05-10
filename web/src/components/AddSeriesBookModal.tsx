@@ -1,5 +1,5 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react'
-import { api, Author, Book, Series } from '../api/client'
+import { type FormEvent, useEffect, useMemo, useState } from 'react'
+import { api, type Author, type Book, type Series } from '../api/client'
 
 interface Props {
   series: Series
@@ -105,7 +105,6 @@ export default function AddSeriesBookModal({ series, onClose, onLinked }: Props)
             onChange={e => setQuery(e.target.value)}
             placeholder="Search library books..."
             className="w-full bg-slate-200 dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-emerald-500"
-            autoFocus
           />
 
           <div className="space-y-2 max-h-64 overflow-y-auto">

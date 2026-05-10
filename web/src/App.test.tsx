@@ -57,7 +57,7 @@ describe('Shell — desktop navigation', () => {
     renderShell()
     const desktopNav = document.querySelector('nav.hidden.lg\\:flex')
     expect(desktopNav).not.toBeNull()
-    const links = desktopNav!.querySelectorAll('a')
+    const links = desktopNav?.querySelectorAll('a')
     expect(links.length).toBe(8)
     const labels = Array.from(links).map(l => l.textContent)
     expect(labels).toContain('Authors')
@@ -71,8 +71,8 @@ describe('Shell — desktop navigation', () => {
     renderShell()
     const nav = document.querySelector('nav.hidden.lg\\:flex')
     expect(nav).not.toBeNull()
-    expect(nav!.className).toContain('hidden')
-    expect(nav!.className).toContain('lg:flex')
+    expect(nav?.className).toContain('hidden')
+    expect(nav?.className).toContain('lg:flex')
   })
 
   it('settings gear icon is in the desktop header (hidden on mobile)', () => {

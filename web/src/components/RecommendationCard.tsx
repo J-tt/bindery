@@ -1,6 +1,6 @@
 import { useState, useRef, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Recommendation } from '../api/client'
+import type { Recommendation } from '../api/client'
 
 interface RecommendationCardProps {
   rec: Recommendation

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { api, Book } from '../api/client'
+import { api, type Book } from '../api/client'
 
 function getDaysInMonth(year: number, month: number) {
   return new Date(year, month + 1, 0).getDate()
@@ -163,8 +163,8 @@ export default function CalendarPage() {
           {/* Compact grid for mobile — shown below sm */}
           <div className="sm:hidden border border-slate-200 dark:border-zinc-800 rounded-lg overflow-hidden mb-4">
             <div className="grid grid-cols-7 bg-slate-100 dark:bg-zinc-900 border-b border-slate-200 dark:border-zinc-800">
-              {DAY_NAMES_SHORT.map((d, i) => (
-                <div key={i} className="py-2 text-center text-xs font-medium text-slate-600 dark:text-zinc-500">
+              {DAY_NAMES_SHORT.map((d) => (
+                <div key={d} className="py-2 text-center text-xs font-medium text-slate-600 dark:text-zinc-500">
                   {d}
                 </div>
               ))}

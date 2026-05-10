@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { SearchDebug } from '../api/client'
+import type { SearchDebug } from '../api/client'
 
 interface Props {
   debug: SearchDebug
@@ -156,8 +156,8 @@ export default function SearchDebugPanel({ debug, resultCount, defaultOpen }: Pr
                 Filter decisions ({filters.length})
               </h4>
               <div className="border border-slate-200 dark:border-zinc-800 rounded overflow-hidden divide-y divide-slate-200 dark:divide-zinc-800 max-h-64 overflow-y-auto">
-                {filters.map((f, i) => (
-                  <div key={i} className="px-2 py-1 bg-white dark:bg-zinc-950">
+                {filters.map((f) => (
+                  <div key={`${f.stage}-${f.title}`} className="px-2 py-1 bg-white dark:bg-zinc-950">
                     <div className="flex items-center gap-2">
                       <span className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-zinc-800 text-slate-700 dark:text-zinc-300 font-mono">
                         {f.stage}

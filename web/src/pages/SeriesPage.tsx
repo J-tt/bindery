@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { api, Series, SeriesFillBookRequest, SeriesHardcoverDiff, SeriesHardcoverDiffBook, SeriesHardcoverLink, SeriesHardcoverSearchResult, SystemStatus } from '../api/client'
+import { api, type Series, type SeriesFillBookRequest, type SeriesHardcoverDiff, type SeriesHardcoverDiffBook, type SeriesHardcoverLink, type SeriesHardcoverSearchResult, type SystemStatus } from '../api/client'
 import AddSeriesBookModal from '../components/AddSeriesBookModal'
 import HardcoverSeriesLinkModal from '../components/HardcoverSeriesLinkModal'
 import SeriesNameModal from '../components/SeriesNameModal'

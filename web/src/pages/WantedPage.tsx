@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState, useMemo } from 'react'
+import { useCallback, useEffect, useRef, useState, useMemo } from 'react'
 import { Link } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { api, Book, SearchResult } from '../api/client'
+import { api, type Book, type SearchResult } from '../api/client'
 import BulkActionBar from '../components/BulkActionBar'
 import Pagination from '../components/Pagination'
 import { usePagination } from '../components/usePagination'
@@ -23,20 +23,20 @@ export default function WantedPage() {
   const [showExcluded, setShowExcluded] = useState(false)
   const selectAllRef = useRef<HTMLInputElement>(null)
 
-  const load = () => {
+  const load = useCallback(() => {
     api.listWanted({ includeExcluded: showExcluded }).then(setBooks).catch(console.error).finally(() => setLoading(false))
-  }
+  }, [showExcluded])
 
   useEffect(() => {
     load()
-  }, [showExcluded])
+  }, [load])
 
   const filtered = useMemo(() => {
     if (!search.trim()) return books
     const q = search.trim().toLowerCase()
     return books.filter(b =>
       b.title.toLowerCase().includes(q) ||
-      (b.author?.authorName && b.author.authorName.toLowerCase().includes(q))
+      (b.author?.authorName?.toLowerCase().includes(q))
     )
   }, [books, search])
 
@@ -101,7 +101,7 @@ export default function WantedPage() {
 
   const { pageItems, paginationProps, reset } = usePagination(filtered, 50, 'wanted')
 
-  useEffect(() => { reset() }, [search, reset])
+  useEffect(() => { reset() }, [reset])
 
   // Keep the select-all checkbox indeterminate state in sync.
   const allPageSelected = pageItems.length > 0 && pageItems.every(b => selectedIds.has(b.id))
@@ -142,9 +142,9 @@ export default function WantedPage() {
   }
 
   const formatSize = (bytes: number) => {
-    if (bytes > 1073741824) return (bytes / 1073741824).toFixed(1) + ' GB'
-    if (bytes > 1048576) return (bytes / 1048576).toFixed(1) + ' MB'
-    return (bytes / 1024).toFixed(0) + ' KB'
+    if (bytes > 1073741824) return `${(bytes / 1073741824).toFixed(1)} GB`
+    if (bytes > 1048576) return `${(bytes / 1048576).toFixed(1)} MB`
+    return `${(bytes / 1024).toFixed(0)} KB`
   }
 
   return (

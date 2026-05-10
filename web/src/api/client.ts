@@ -47,7 +47,7 @@ async function request<T>(path: string, options?: RequestInit): Promise<T> {
     headers.set('X-CSRF-Token', csrfToken)
   }
   if (options?.headers) {
-    new Headers(options.headers).forEach((v, k) => headers.set(k, v))
+    new Headers(options.headers).forEach((v, k) => { headers.set(k, v) })
   }
   const res = await fetch(`${BASE}${path}`, {
     credentials: 'include', // send + accept the session cookie
@@ -138,7 +138,7 @@ export const api = {
     if (params?.limit) p.limit = String(params.limit)
     if (params?.offset) p.offset = String(params.offset)
     const qs = new URLSearchParams(p).toString()
-    return request<LogEntry[]>(`/system/logs${qs ? '?' + qs : ''}`)
+    return request<LogEntry[]>(`/system/logs${qs ? `?${qs}` : ''}`)
   },
   getLogLevel: () => request<{ level: string }>('/system/loglevel'),
   setLogLevel: (level: string) =>
@@ -246,7 +246,7 @@ export const api = {
     if (params?.status) q.set('status', params.status)
     if (params?.includeExcluded) q.set('includeExcluded', 'true')
     const qs = q.toString()
-    return request<Book[]>(`/book${qs ? '?' + qs : ''}`)
+    return request<Book[]>(`/book${qs ? `?${qs}` : ''}`)
   },
   getBook: (id: number) => request<Book>(`/book/${id}`),
   updateBook: (id: number, data: Partial<Book>) => request<Book>(`/book/${id}`, { method: 'PUT', body: JSON.stringify(data) }),
@@ -319,7 +319,7 @@ export const api = {
     if (params?.bookId) q.set('bookId', String(params.bookId))
     if (params?.eventType) q.set('eventType', params.eventType)
     const qs = q.toString()
-    return request<HistoryEvent[]>(`/history${qs ? '?' + qs : ''}`)
+    return request<HistoryEvent[]>(`/history${qs ? `?${qs}` : ''}`)
   },
   deleteHistory: (id: number) => request<void>(`/history/${id}`, { method: 'DELETE' }),
   blocklistFromHistory: (id: number) => request<BlocklistEntry>(`/history/${id}/blocklist`, { method: 'POST' }),
@@ -470,7 +470,7 @@ export const api = {
     if (params?.limit) q.set('limit', String(params.limit))
     if (params?.offset) q.set('offset', String(params.offset))
     const qs = q.toString()
-    return request<Recommendation[]>(`/recommendations${qs ? '?' + qs : ''}`)
+    return request<Recommendation[]>(`/recommendations${qs ? `?${qs}` : ''}`)
   },
   dismissRecommendation: (id: number) => request<void>(`/recommendations/${id}/dismiss`, { method: 'POST' }),
   addRecommendation: (id: number) => request<void>(`/recommendations/${id}/add`, { method: 'POST' }),

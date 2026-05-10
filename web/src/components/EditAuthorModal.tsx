@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { api, Author, MetadataProfile, QualityProfile, RootFolder } from '../api/client'
+import { api, type Author, type MetadataProfile, type QualityProfile, type RootFolder } from '../api/client'
 
 interface Props {
   author: Author

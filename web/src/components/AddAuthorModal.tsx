@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { api, Author, MediaType, MetadataProfile, RootFolder } from '../api/client'
+import { api, type Author, type MediaType, type MetadataProfile, type RootFolder } from '../api/client'
 import { splitAuthorSearchResults } from './addAuthorTitleGuard'
 
 interface Props {
@@ -179,7 +179,6 @@ export default function AddAuthorModal({ onClose, onAdded }: Props) {
               onKeyDown={e => e.key === 'Enter' && search()}
               placeholder={t('addAuthorModal.searchPlaceholder')}
               className="flex-1 bg-slate-200 dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-emerald-500"
-              autoFocus
             />
             <button
               onClick={search}

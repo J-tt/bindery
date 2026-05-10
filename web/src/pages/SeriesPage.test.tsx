@@ -487,7 +487,7 @@ describe('SeriesPage', () => {
       ...series,
       books: [...(series.books ?? []), { seriesId: 30, bookId: 102, positionInSeries: '2', primarySeries: true, book: candidate }],
     }
-    vi.mocked(api.listBooks).mockResolvedValue([series.books![0].book!, candidate])
+    vi.mocked(api.listBooks).mockResolvedValue([series.books?.[0]?.book as typeof candidate, candidate])
     vi.mocked(api.listAuthors).mockResolvedValue([
       {
         id: 12,

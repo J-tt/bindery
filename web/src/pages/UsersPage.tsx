@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react'
+import type React from 'react'
+import { useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { api, ManagedUser } from '../api/client'
+import { api, type ManagedUser } from '../api/client'
 import { useAuth } from '../auth/AuthContext'
 
 const inputCls = 'w-full bg-slate-200 dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-slate-400 dark:focus:border-zinc-600'
@@ -30,7 +31,7 @@ export default function UsersPage() {
       .then(setUsers)
       .catch(e => setError(e instanceof Error ? e.message : t('users.loadFail')))
       .finally(() => setLoading(false))
-  }, [isAdmin])
+  }, [isAdmin, t])
 
   async function handleCreate(e: React.FormEvent) {
     e.preventDefault()

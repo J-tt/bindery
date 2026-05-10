@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { api, Book } from '../api/client'
+import { api, type Book } from '../api/client'
 
 interface Props {
   onClose: () => void
@@ -86,7 +86,6 @@ export default function AddBookModal({ onClose, onAdded }: Props) {
               onKeyDown={e => e.key === 'Enter' && search()}
               placeholder="Title or ISBN (e.g. Dune, 9780441478125)"
               className="flex-1 bg-slate-200 dark:bg-zinc-800 border border-slate-300 dark:border-zinc-700 rounded-md px-3 py-2 text-sm focus:outline-none focus:border-emerald-500"
-              autoFocus
             />
             <button
               onClick={search}

@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useTranslation } from 'react-i18next'
-import { api, PendingRelease, QueueItem } from '../api/client'
+import { api, type PendingRelease, type QueueItem } from '../api/client'
 
 export default function QueuePage() {
   const { t } = useTranslation()
@@ -9,7 +9,7 @@ export default function QueuePage() {
   const [loading, setLoading] = useState(true)
   const [grabbingPending, setGrabbingPending] = useState<number | null>(null)
 
-  const load = () => {
+  const load = useCallback(() => {
     Promise.all([
       api.listQueue(),
       api.listPending(),
@@ -17,13 +17,13 @@ export default function QueuePage() {
       setQueue(q)
       setPending(p)
     }).catch(console.error).finally(() => setLoading(false))
-  }
+  }, [])
 
   useEffect(() => {
     load()
     const interval = setInterval(load, 5000)
     return () => clearInterval(interval)
-  }, [])
+  }, [load])
 
   useEffect(() => {
     document.title = 'Queue · Bindery'
@@ -77,9 +77,9 @@ export default function QueuePage() {
   }
 
   const formatSize = (bytes: number) => {
-    if (bytes > 1073741824) return (bytes / 1073741824).toFixed(1) + ' GB'
-    if (bytes > 1048576) return (bytes / 1048576).toFixed(1) + ' MB'
-    return (bytes / 1024).toFixed(0) + ' KB'
+    if (bytes > 1073741824) return `${(bytes / 1073741824).toFixed(1)} GB`
+    if (bytes > 1048576) return `${(bytes / 1048576).toFixed(1)} MB`
+    return `${(bytes / 1024).toFixed(0)} KB`
   }
 
   return (

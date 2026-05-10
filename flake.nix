@@ -7,8 +7,6 @@
     nixpkgs-unstable.url = "github:NixOS/nixpkgs/nixos-unstable";
     gomod2nix.url = "github:nix-community/gomod2nix";
     gomod2nix.inputs.nixpkgs.follows = "nixpkgs";
-    dream2nix.url = "github:nix-community/dream2nix";
-    dream2nix.inputs.nixpkgs.follows = "nixpkgs";
   };
 
   outputs = {
@@ -16,7 +14,6 @@
     nixpkgs,
     nixpkgs-unstable,
     gomod2nix,
-    dream2nix,
   }: let
     system = "x86_64-linux";
     pkgs = import nixpkgs {inherit system;};
@@ -69,24 +66,6 @@
       };
     };
 
-    # ---------------------------------------------------------------------------
-    # Dev shell node_modules via dream2nix (supports lockfile v3).
-    # The derivation output contains the installed node_modules at
-    # $out/lib/node_modules/bindery-web/node_modules — rsynced into web/ on
-    # shell entry.
-    # ---------------------------------------------------------------------------
-    webNodeModules = (dream2nix.lib.evalModules {
-      packageSets.nixpkgs = pkgs;
-      modules = [
-        dream2nix.modules.dream2nix.nodejs-package-lock-v3
-        dream2nix.modules.dream2nix.nodejs-node-modules-v3
-        {
-          name = "bindery-web";
-          inherit version;
-          nodejs-package-lock-v3.packageLockFile = ./web/package-lock.json;
-        }
-      ];
-    }).config.public;
     # ---------------------------------------------------------------------------
     # Shared Go test base — reuses the gomod2nix vendor env from bindery.
     # ---------------------------------------------------------------------------
@@ -299,20 +278,20 @@
         pkgs.nodejs_22
 
         # Misc dev tools
-        pkgs.golangci-lint
+        # golangci-lint is a Go tool — run via `go tool golangci-lint run`
         pkgs.govulncheck
+        pkgs.biome
       ];
 
       shellHook = ''
-        # Sync dream2nix-built node_modules into web/ (rsync only updates changed files).
-        nm_store="${webNodeModules}/lib/node_modules/bindery-web/node_modules"
-        nm_id_file="web/.dream2nix/.node_modules_id"
-        curr_id=$(cat "$nm_id_file" 2>/dev/null || true)
-        if [[ "$nm_store" != "$curr_id" || ! -d web/node_modules ]]; then
-          mkdir -p web/.dream2nix
-          ${pkgs.rsync}/bin/rsync -a --delete --chmod=ug+w "$nm_store"/ web/node_modules/
-          echo -n "$nm_store" > "$nm_id_file"
-          echo "node_modules updated"
+        # Point @biomejs/biome npm package at the Nix-built binary (avoids
+        # dynamically-linked binary issues on NixOS).
+        export BIOME_BINARY="${pkgs.biome}/bin/biome"
+
+        # Install node_modules if missing or lockfile is newer than node_modules.
+        if [[ ! -d web/node_modules || web/package-lock.json -nt web/node_modules ]]; then
+          echo "Running npm ci in web/..."
+          (cd web && ${pkgs.nodejs_22}/bin/npm ci)
         fi
 
         echo "bindery dev shell"

@@ -1,7 +1,7 @@
-import { FormEvent, useEffect, useState } from 'react'
+import { type FormEvent, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useTranslation } from 'react-i18next'
-import { api, OidcProvider } from '../api/client'
+import { api, type OidcProvider } from '../api/client'
 import { useAuth } from '../auth/AuthContext'
 import Logo from '../components/Logo'
 
@@ -86,7 +86,6 @@ export default function LoginPage() {
             name="username"
             id="username"
             autoComplete="username"
-            autoFocus
             required
             className="w-full bg-white dark:bg-zinc-900 border border-slate-300 dark:border-zinc-700 rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
           />

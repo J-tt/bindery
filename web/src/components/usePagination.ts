@@ -8,7 +8,7 @@ function readStoredPageSize(storageKey: string | undefined): number | null {
     const stored = localStorage.getItem(key)
     if (stored) {
       const n = parseInt(stored, 10)
-      if (!isNaN(n) && n > 0) return n
+      if (!Number.isNaN(n) && n > 0) return n
     }
   }
   return null

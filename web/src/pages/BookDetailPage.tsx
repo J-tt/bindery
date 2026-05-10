@@ -1,15 +1,15 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { api, Book, HistoryEvent, SearchResult, SearchDebug } from '../api/client'
+import { api, type Book, type HistoryEvent, type SearchResult, type SearchDebug } from '../api/client'
 import SearchDebugPanel from '../components/SearchDebugPanel'
 import MediaBadge from '../components/MediaBadge'
 import RebindModal from '../components/RebindModal'
 
 function formatSize(n: number): string {
   if (!n || n <= 0) return ''
-  if (n >= 1073741824) return (n / 1073741824).toFixed(1) + ' GB'
-  if (n >= 1048576) return (n / 1048576).toFixed(0) + ' MB'
-  return (n / 1024).toFixed(0) + ' KB'
+  if (n >= 1073741824) return `${(n / 1073741824).toFixed(1)} GB`
+  if (n >= 1048576) return `${(n / 1048576).toFixed(0)} MB`
+  return `${(n / 1024).toFixed(0)} KB`
 }
 
 function formatDuration(seconds?: number): string {
