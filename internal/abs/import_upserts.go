@@ -58,31 +58,41 @@ func (i *Importer) resolveAuthor(ctx context.Context, cfg ImportConfig, runID in
 				return nil, false, "", metadataMergeResult{}, err
 			}
 			if existing != nil {
-				if !cfg.DryRun {
-					if err := i.upsertProvenance(ctx, &models.ABSProvenance{
-						SourceID:    cfg.SourceID,
-						LibraryID:   item.LibraryID,
-						EntityType:  entityTypeAuthor,
-						ExternalID:  externalID,
-						LocalID:     existing.ID,
-						ItemID:      item.ItemID,
-						ImportRunID: ptrInt64(runID),
-					}); err != nil {
-						return nil, false, "", metadataMergeResult{}, err
+				matches, err := matcher.authorMatchesABSName(ctx, existing, name)
+				if err != nil {
+					return nil, false, "", metadataMergeResult{}, err
+				}
+				if matches {
+					if !cfg.DryRun {
+						if err := i.upsertProvenance(ctx, &models.ABSProvenance{
+							SourceID:    cfg.SourceID,
+							LibraryID:   item.LibraryID,
+							EntityType:  entityTypeAuthor,
+							ExternalID:  externalID,
+							LocalID:     existing.ID,
+							ItemID:      item.ItemID,
+							ImportRunID: ptrInt64(runID),
+						}); err != nil {
+							return nil, false, "", metadataMergeResult{}, err
+						}
 					}
+					if cfg.DryRun {
+						_ = i.recordRunEntity(ctx, runID, cfg, item.LibraryID, item.ItemID, entityTypeAuthor, externalID, existing.ID, itemOutcomeLinked, nil)
+						return existing, false, "provenance", metadataMergeResult{}, nil
+					}
+					if err := i.recordAuthorBeforeSnapshot(ctx, runID, cfg, item, externalID, existing, itemOutcomeLinked, nil); err != nil {
+						slog.Warn("abs import: persist author rollback snapshot failed", "authorID", existing.ID, "runID", runID, "error", err)
+					}
+					metaResult, err := i.enrichAuthor(ctx, cfg, item, existing, matcher)
+					if perr := i.recordAuthorAfterSnapshot(ctx, runID, cfg, item, externalID, existing.ID, itemOutcomeLinked, nil); perr != nil {
+						slog.Warn("abs import: persist author rollback snapshot failed", "authorID", existing.ID, "runID", runID, "error", perr)
+					}
+					return existing, false, "provenance", metaResult, err
 				}
-				if cfg.DryRun {
-					_ = i.recordRunEntity(ctx, runID, cfg, item.LibraryID, item.ItemID, entityTypeAuthor, externalID, existing.ID, itemOutcomeLinked, nil)
-					return existing, false, "provenance", metadataMergeResult{}, nil
-				}
-				if err := i.recordAuthorBeforeSnapshot(ctx, runID, cfg, item, externalID, existing, itemOutcomeLinked, nil); err != nil {
-					slog.Warn("abs import: persist author rollback snapshot failed", "authorID", existing.ID, "runID", runID, "error", err)
-				}
-				metaResult, err := i.enrichAuthor(ctx, cfg, item, existing, matcher)
-				if perr := i.recordAuthorAfterSnapshot(ctx, runID, cfg, item, externalID, existing.ID, itemOutcomeLinked, nil); perr != nil {
-					slog.Warn("abs import: persist author rollback snapshot failed", "authorID", existing.ID, "runID", runID, "error", perr)
-				}
-				return existing, false, "provenance", metaResult, err
+				slog.Info("abs import: ignored stale author provenance",
+					"author", name,
+					"authorID", existing.ID,
+					"externalID", externalID)
 			}
 		}
 	}
@@ -314,6 +324,13 @@ func (i *Importer) enrichAuthor(ctx context.Context, cfg ImportConfig, item Norm
 	if full == nil {
 		return metadataMergeResult{}, nil
 	}
+	matches, err := matcher.authorMatchesABSName(ctx, author, item.Authors[0].Name)
+	if err != nil {
+		return metadataMergeResult{}, err
+	}
+	if !matches {
+		return metadataMergeResult{Messages: []string{"author relink skipped: ABS author no longer matches local author"}}, nil
+	}
 
 	result := metadataMergeResult{Matched: 1}
 	changed := false
@@ -457,14 +474,16 @@ func (i *Importer) lookupUpstreamBook(ctx context.Context, author *models.Author
 			return nil, "", false, err
 		}
 		if match != nil {
-			full, err := i.meta.GetBook(ctx, match.ForeignID)
-			if err != nil {
-				return nil, "", false, err
-			}
-			if full != nil {
-				return full, "isbn", false, nil
-			}
 			return match, "isbn", false, nil
+		}
+	}
+	if asin := strings.TrimSpace(item.ASIN); asin != "" {
+		match, err := i.meta.GetCanonicalBookByASIN(ctx, asin)
+		if err != nil {
+			return nil, "", false, err
+		}
+		if match != nil {
+			return match, "asin", false, nil
 		}
 	}
 	if author == nil || author.ForeignID == "" || author.MetadataProvider == providerAudiobookshelf {

@@ -12,7 +12,7 @@ import (
 // characters, and collapses whitespace. Returned form is suitable for key-style
 // equality comparisons but still preserves token spacing.
 func NormalizeAuthorName(name string) string {
-	name = norm.NFC.String(strings.TrimSpace(name))
+	name = norm.NFD.String(strings.TrimSpace(name))
 	if name == "" {
 		return ""
 	}
@@ -22,6 +22,8 @@ func NormalizeAuthorName(name string) string {
 	spacePending := false
 	for _, r := range name {
 		switch {
+		case unicode.Is(unicode.Mn, r):
+			continue
 		case unicode.IsLetter(r) || unicode.IsDigit(r):
 			if spacePending && b.Len() > 0 {
 				b.WriteByte(' ')

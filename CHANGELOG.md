@@ -8,6 +8,8 @@ All notable changes to Bindery are documented here. Format loosely follows
 
 ### Added
 
+- **Book metadata can be remapped from the Book Detail page** — Books with ABS or stale metadata now show an **Improve metadata** action that searches upstream providers or accepts a direct provider ID. New `POST /api/v1/book/{id}/map` applies the upstream title, cover, language, ratings, genres, and provider ID while preserving local status, files, media type, ASIN, narrator, selected edition, and exclusion state.
+
 - **Calibre-Web-Automated (CWA) ingest** (#417) — A new
   **Settings → General → Calibre-Web-Automated (CWA)** field configures a
   shared ingest folder. When set, every successful ebook import is also
@@ -18,6 +20,14 @@ All notable changes to Bindery are documented here. Format loosely follows
   runtime dependency is added to the bindery container — only the file
   drop is in scope. Audiobook imports are unaffected since CWA is built
   around ebook libraries.
+
+### Fixed
+
+- **ISBN lookups now canonicalise provider-native matches** — ISBN searches normalize ISBN input, consult configured metadata enrichers, and conservatively relink provider-native results back to canonical OpenLibrary works when the author/title evidence is unambiguous. This improves translated and edition-specific matches while avoiding plausible wrong-title fallbacks.
+- **Audiobook ASIN enrichment can relink to upstream metadata** — Enriching an audiobook now uses Audnex ASIN metadata to find a safe canonical upstream match, so ABS/imported audiobook rows can gain better titles, covers, language, search metadata, and OpenLibrary IDs while keeping audiobook-specific fields intact.
+- **ABS imports no longer trust stale secondary-author aliases or provenance** — Existing ABS author provenance and aliases are reused only when they still match the local author, preventing secondary-author names from corrupting future imports.
+- **Direct book adds preserve series links** — Adding a book directly no longer drops existing series associations during metadata canonicalization.
+- **Google Books provider settings are respected at startup** — Bindery now prefers the UI-managed Google Books API key, keeps legacy setting fallback for existing installs, and treats a deliberately cleared UI setting as disabled.
 
 ## [v1.8.1] — 2026-05-09
 
