@@ -160,7 +160,7 @@ func TestCopyDirMode(t *testing.T) {
 // hints (empty strings) falls back to "copy" mode (safe cross-device default).
 func TestImportMode_Default(t *testing.T) {
 	s := &Scanner{}
-	if got := s.importMode(nil, "", ""); got != "copy" {
+	if got := s.importMode(context.TODO(), "", ""); got != "copy" {
 		t.Errorf("importMode without settings = %q, want %q", got, "copy")
 	}
 }

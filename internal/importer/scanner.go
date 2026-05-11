@@ -508,12 +508,13 @@ func (s *Scanner) checkTransmissionDownloads(ctx context.Context, client *models
 		isStopped := torrent.Status == 0 || torrent.Status == 6
 		stopError := strings.TrimSpace(torrent.ErrorString)
 
-		if isComplete && (dl.Status == models.StateDownloading || dl.Status == models.StateGrabbed) {
+		switch {
+		case isComplete && (dl.Status == models.StateDownloading || dl.Status == models.StateGrabbed):
 			// Download is complete
 			slog.Info("download completed", "title", dl.Title, "path", torrent.DownloadDir)
 			s.updateDownloadStatus(ctx, dl.ID, models.StateCompleted)
 			s.tryImportTransmission(ctx, &dl, torrent.DownloadDir)
-		} else if isComplete && dl.Status == models.StateImportFailed && dl.ImportRetryCount < importRetryLimit {
+		case isComplete && dl.Status == models.StateImportFailed && dl.ImportRetryCount < importRetryLimit:
 			// Bug #7: retry a previously failed import.
 			slog.Info("retrying failed import", "title", dl.Title, "path", torrent.DownloadDir,
 				"attempt", dl.ImportRetryCount+1, "limit", importRetryLimit)
@@ -521,7 +522,7 @@ func (s *Scanner) checkTransmissionDownloads(ctx context.Context, client *models
 				slog.Warn("failed to increment import retry count", "download_id", dl.ID, "error", err)
 			}
 			s.tryImportTransmission(ctx, &dl, torrent.DownloadDir)
-		} else if isStopped && !isComplete && dl.Status != models.StateFailed {
+		case isStopped && !isComplete && dl.Status != models.StateFailed:
 			if stopError == "" {
 				// Transmission also reports user-paused torrents as stopped.
 				continue
@@ -566,7 +567,8 @@ func (s *Scanner) checkQbittorrentDownloads(ctx context.Context, client *models.
 		isComplete := torrent.Progress >= 1.0 || strings.Contains(state, "upload") || strings.Contains(state, "stalledup") || strings.Contains(state, "checkingup")
 		isFailed := strings.Contains(state, "error")
 
-		if isComplete && (dl.Status == models.StateDownloading || dl.Status == models.StateGrabbed) {
+		switch {
+		case isComplete && (dl.Status == models.StateDownloading || dl.Status == models.StateGrabbed):
 			rawPath, ok := resolveQbitContentPath(torrent)
 			if !ok {
 				// Path doesn't exist on disk yet (qBittorrent may sanitise characters
@@ -585,7 +587,7 @@ func (s *Scanner) checkQbittorrentDownloads(ctx context.Context, client *models.
 			slog.Info("download completed", "title", dl.Title, "path", downloadPath)
 			s.updateDownloadStatus(ctx, dl.ID, models.StateCompleted)
 			s.tryImportQbittorrent(ctx, &dl, downloadPath)
-		} else if isComplete && dl.Status == models.StateImportFailed && dl.ImportRetryCount < importRetryLimit {
+		case isComplete && dl.Status == models.StateImportFailed && dl.ImportRetryCount < importRetryLimit:
 			// Bug #7: a previous import attempt failed (e.g. transient filesystem
 			// error, path mismatch). The torrent is still seeding so we have the
 			// files — retry the import rather than leaving it stuck permanently.
@@ -605,7 +607,7 @@ func (s *Scanner) checkQbittorrentDownloads(ctx context.Context, client *models.
 				slog.Warn("failed to increment import retry count", "download_id", dl.ID, "error", err)
 			}
 			s.tryImportQbittorrent(ctx, &dl, downloadPath)
-		} else if isFailed && dl.Status != models.StateFailed {
+		case isFailed && dl.Status != models.StateFailed:
 			slog.Warn("download failed", "title", dl.Title, "state", torrent.State)
 			s.markDownloadFailed(ctx, &dl, "Torrent failed in qBittorrent")
 		}

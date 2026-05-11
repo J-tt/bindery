@@ -41,11 +41,11 @@ type Download struct {
 	Quality          string        `json:"quality"`
 	IndexerFlags     string        `json:"indexerFlags"`
 	ErrorMessage     string        `json:"errorMessage"`
-	AddedAt           time.Time     `json:"addedAt"`
-	GrabbedAt         *time.Time    `json:"grabbedAt"`
-	CompletedAt       *time.Time    `json:"completedAt"`
-	ImportedAt        *time.Time    `json:"importedAt"`
-	ImportRetryCount  int           `json:"importRetryCount"`
+	AddedAt          time.Time     `json:"addedAt"`
+	GrabbedAt        *time.Time    `json:"grabbedAt"`
+	CompletedAt      *time.Time    `json:"completedAt"`
+	ImportedAt       *time.Time    `json:"importedAt"`
+	ImportRetryCount int           `json:"importRetryCount"`
 }
 
 // Legacy status aliases — callers should prefer the typed State* constants in
