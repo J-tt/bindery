@@ -229,6 +229,44 @@ func TestClientGetLibraryItem_UsesExpandedAuthorsQuery(t *testing.T) {
 	}
 }
 
+func TestClientScanLibrary_PostsToCorrectEndpoint(t *testing.T) {
+	t.Parallel()
+
+	var gotMethod, gotPath string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotPath = r.URL.Path
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	client, err := NewClient(srv.URL, "secret-key")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := client.ScanLibrary(context.Background(), "lib-audiobooks"); err != nil {
+		t.Fatalf("ScanLibrary: %v", err)
+	}
+	if gotMethod != http.MethodPost {
+		t.Errorf("method = %q, want POST", gotMethod)
+	}
+	if gotPath != "/api/libraries/lib-audiobooks/scan" {
+		t.Errorf("path = %q, want /api/libraries/lib-audiobooks/scan", gotPath)
+	}
+}
+
+func TestClientScanLibrary_EmptyLibraryIDReturnsError(t *testing.T) {
+	t.Parallel()
+
+	client, err := NewClient("http://abs.example.com", "secret-key")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := client.ScanLibrary(context.Background(), ""); err == nil {
+		t.Fatal("expected error for empty library_id")
+	}
+}
+
 func TestShouldRetry(t *testing.T) {
 	t.Parallel()
 

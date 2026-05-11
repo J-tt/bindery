@@ -208,7 +208,7 @@ The new field is exposed in `GET`/`PUT /api/v1/abs/config` as `audiobooksLibrary
 
 ---
 
-## Bug 10: ABS integration is import-only — no metadata push after import
+## Bug 10: ABS integration is import-only — no metadata push after import ✓ Fixed (scan trigger)
 
 **File:** `internal/abs/` — `importer.go`, `internal/importer/scanner.go`
 
@@ -222,9 +222,13 @@ import time (sourced from Audnex, Hardcover, etc.) and could trigger an ABS meta
 **Impact:** Newly imported audiobooks appear in ABS without series grouping, correct title,
 cover, or narrator until the user manually triggers a metadata match in the ABS UI.
 
-**Fix:** After a successful audiobook import, call the ABS API to:
-1. Trigger a folder scan to surface the new item
-2. Once the item exists in ABS, call `/api/items/{id}/match` with the known ASIN
+**Fix (partial):** After a successful audiobook import, `tryImportInternal` now calls
+`abs.ScanNotifier.ScanLibrary` → `POST /api/libraries/{id}/scan` so ABS discovers the new
+item within seconds rather than waiting up to 24 h for its next scheduled scan. The ABS
+library ID is resolved at import time from the `abs.audiobooks_library_id` setting (falling
+back to `abs.library_id`) so config changes take effect without restart. The follow-up
+`/api/items/{id}/match` ASIN call (step 2) is a future improvement — it requires polling for
+the item to appear after the scan completes.
 
 ---
 
@@ -249,7 +253,7 @@ API key without a session cookie.
 
 ---
 
-## Bug 12: Downloaded audiobooks treated as MISSING in ABS when import mode is `move`
+## Bug 12: Downloaded audiobooks treated as MISSING in ABS when import mode is `move` ✓ Fixed
 
 **Context:** Bindery imports audiobooks by moving or hardlinking files from the download
 client's save directory into the configured library directory. The ABS integration reads
@@ -264,14 +268,9 @@ that download directory path (because it was placed in a path ABS happened to sc
 item will appear as MISSING in ABS immediately after import rather than simply updating to
 the new path.
 
-**Workaround:** Trigger a manual ABS library scan after any batch of imports:
-```bash
-curl -X POST -H "Authorization: Bearer $ABS_TOKEN" \
-  http://localhost:8000/api/libraries/{library_id}/scan
-```
-
-**Fix:** Bindery should call the ABS scan or item-add API immediately after a successful
-import (see also Bug 10).
+**Fix:** Resolved by the Bug #10 library scan trigger — `tryImportInternal` now calls
+`POST /api/libraries/{id}/scan` immediately after a successful audiobook import, so ABS
+rescans and updates the item path before it can appear as MISSING.
 
 ---
 

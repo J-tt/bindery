@@ -240,6 +240,23 @@ func main() {
 		slog.Info("audiobook download dir configured", "path", cfg.AudiobookDownloadDir)
 	}
 
+	// Wire ABS post-import scan notification (Bug #10). The notifier reads ABS
+	// config from settings at call time so that config changes (URL, API key,
+	// library ID) take effect without restarting Bindery.
+	importScanner.WithABSNotifier(
+		abs.NewScanNotifier(settingsRepo),
+		func() string {
+			cfg := api.LoadABSConfig(context.Background(), settingsRepo)
+			if !cfg.Enabled {
+				return ""
+			}
+			if cfg.AudiobooksLibraryID != "" {
+				return cfg.AudiobooksLibraryID
+			}
+			return cfg.LibraryID
+		},
+	)
+
 	modeResolver := func() calibre.Mode { return api.LoadCalibreMode(settingsRepo) }
 	calibreCfg := api.LoadCalibreConfig(settingsRepo)
 	currentMode := api.LoadCalibreMode(settingsRepo)

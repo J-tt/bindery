@@ -31,6 +31,14 @@ type calibreAdder interface {
 	Add(ctx context.Context, filePath string) (int64, error)
 }
 
+// absNotifier is called after a successful audiobook import to trigger an
+// Audiobookshelf library scan so the new item is surfaced promptly rather than
+// waiting for the next scheduled ABS scan (which defaults to every 24 h).
+// Failures are best-effort — the import is never rolled back on ABS errors.
+type absNotifier interface {
+	ScanLibrary(ctx context.Context, libraryID string) error
+}
+
 // Scanner checks for completed downloads and imports them into the library.
 type Scanner struct {
 	downloads            *db.DownloadRepo
@@ -48,6 +56,8 @@ type Scanner struct {
 	libraryDir           string
 	audiobookDir         string
 	audiobookDownloadDir string
+	absLib               absNotifier
+	absLibraryIDFn       func() string
 }
 
 // NewScanner creates an import scanner. downloadPathRemap is an optional
@@ -161,6 +171,33 @@ func (s *Scanner) WithCalibre(mode func() calibre.Mode, adder calibreAdder) *Sca
 	s.calibreMode = mode
 	s.calibreAdder = adder
 	return s
+}
+
+// WithABSNotifier attaches an Audiobookshelf scan notifier. libraryIDFn is
+// called at import time to retrieve the current ABS audiobook library ID;
+// returning an empty string disables the notification for that import.
+func (s *Scanner) WithABSNotifier(n absNotifier, libraryIDFn func() string) *Scanner {
+	s.absLib = n
+	s.absLibraryIDFn = libraryIDFn
+	return s
+}
+
+// pushToABS triggers an ABS library scan after a successful audiobook import.
+// Failures are logged and swallowed — ABS sync is best-effort and must never
+// roll back an otherwise-good Bindery import.
+func (s *Scanner) pushToABS(ctx context.Context) {
+	if s.absLib == nil || s.absLibraryIDFn == nil {
+		return
+	}
+	libraryID := s.absLibraryIDFn()
+	if libraryID == "" {
+		return
+	}
+	if err := s.absLib.ScanLibrary(ctx, libraryID); err != nil {
+		slog.Warn("abs: library scan after audiobook import failed", "libraryID", libraryID, "error", err)
+		return
+	}
+	slog.Info("abs: triggered library scan after audiobook import", "libraryID", libraryID)
 }
 
 // WithSettings attaches a SettingsRepo to the scanner so scan results can be
@@ -772,6 +809,7 @@ func (s *Scanner) tryImportInternal(ctx context.Context, dl *models.Download, do
 		}(), "path", destDir)
 
 		s.pushToCalibre(ctx, book, author, destDir)
+		s.pushToABS(ctx)
 
 		s.createHistoryEvent(ctx, models.HistoryEventBookImported, dl.Title, dl.BookID, map[string]string{"path": destDir, "format": models.MediaTypeAudiobook})
 		if cleanupFunc != nil {

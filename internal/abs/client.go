@@ -166,6 +166,18 @@ func (c *Client) ListLibraryItems(ctx context.Context, libraryID string, page, l
 	return &out, nil
 }
 
+// ScanLibrary triggers an ABS library folder scan. ABS will walk all folders
+// configured for the library and surface any newly-added items. This is called
+// after a successful audiobook import so the item appears in ABS promptly
+// rather than waiting for the next scheduled scan (Bug #10).
+func (c *Client) ScanLibrary(ctx context.Context, libraryID string) error {
+	libraryID = strings.TrimSpace(libraryID)
+	if libraryID == "" {
+		return errors.New("library_id is required")
+	}
+	return c.doJSON(ctx, http.MethodPost, "/api/libraries/"+url.PathEscape(libraryID)+"/scan", nil, nil)
+}
+
 func (c *Client) GetLibraryItem(ctx context.Context, id string) (*LibraryItem, error) {
 	id = strings.TrimSpace(id)
 	if id == "" {
