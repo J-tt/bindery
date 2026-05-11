@@ -158,22 +158,27 @@ func (s *Scanner) WithSettings(sr *db.SettingsRepo) *Scanner {
 }
 
 // importMode reads the "import.mode" setting and returns one of "move",
-// "copy", "hardlink", or "external". Defaults to "move" when the setting is
-// absent or unrecognised so upgrades are transparent for existing installs.
-func (s *Scanner) importMode(ctx context.Context) string {
-	if s.settings == nil {
-		return "move"
+// "copy", "hardlink", or "external". When the setting is absent or
+// unrecognised, it defaults to "hardlink" if src and dst are on the same
+// filesystem (free, preserves seeding) or "copy" when they are on different
+// filesystems. Pass empty strings for src/dst to get the cross-device default
+// ("copy") without performing a stat.
+func (s *Scanner) importMode(ctx context.Context, src, dst string) string {
+	if s.settings != nil {
+		setting, err := s.settings.Get(ctx, "import.mode")
+		if err == nil && setting != nil {
+			switch setting.Value {
+			case "move", "copy", "hardlink", "external":
+				return setting.Value
+			}
+		}
 	}
-	setting, err := s.settings.Get(ctx, "import.mode")
-	if err != nil || setting == nil {
-		return "move"
+	// No explicit setting — choose the safest mode that also preserves seeding.
+	if sameDevice(src, dst) {
+		return "hardlink"
 	}
-	switch setting.Value {
-	case "copy", "hardlink", "external":
-		return setting.Value
-	default:
-		return "move"
-	}
+	slog.Warn("import.mode not set and src/dst are on different filesystems; defaulting to copy — seeding will be preserved but disk usage doubles")
+	return "copy"
 }
 
 // pushToCWA copies the just-imported file into the directory watched by a
@@ -247,7 +252,15 @@ func (s *Scanner) pushCalibreAdd(ctx context.Context, book *models.Book, path st
 	slog.Info("calibre: book mirrored", "mode", mode, "bookId", book.ID, "calibreId", id, "path", path)
 }
 
-// CheckDownloads polls SABnzbd for status changes and updates the local download records.
+// importRetryLimit is the maximum number of times CheckDownloads will
+// automatically retry a download stuck in StateImportFailed before giving
+// up and leaving it for manual intervention (Bug #7).
+const importRetryLimit = 3
+
+// CheckDownloads polls all enabled download clients for status changes and
+// updates the local download records. Every enabled client is polled in
+// priority order so that downloads from secondary clients (e.g. a second
+// qBittorrent instance) are never silently ignored (Bug #1).
 func (s *Scanner) CheckDownloads(ctx context.Context) {
 	client, err := s.clients.GetFirstEnabled(ctx)
 	if err != nil || client == nil {
@@ -353,6 +366,15 @@ func (s *Scanner) checkSABnzbdDownloads(ctx context.Context, client *models.Down
 				slog.Info("download completed", "title", dl.Title, "path", localPath)
 				s.updateDownloadStatus(ctx, dl.ID, models.StateCompleted)
 				s.tryImportSABnzbd(ctx, sab, dl, slot.NzoID, localPath)
+			} else if dl.Status == models.StateImportFailed && dl.ImportRetryCount < importRetryLimit {
+				// Bug #7: retry a previously failed import.
+				localPath := s.remapper.Apply(slot.Path)
+				slog.Info("retrying failed import", "title", dl.Title, "path", localPath,
+					"attempt", dl.ImportRetryCount+1, "limit", importRetryLimit)
+				if err := s.downloads.IncrementImportRetryCount(ctx, dl.ID); err != nil {
+					slog.Warn("failed to increment import retry count", "download_id", dl.ID, "error", err)
+				}
+				s.tryImportSABnzbd(ctx, sab, dl, slot.NzoID, localPath)
 			}
 		case "Failed":
 			if dl.Status != models.StateFailed {
@@ -390,6 +412,15 @@ func (s *Scanner) checkNZBGetDownloads(ctx context.Context, client *models.Downl
 				}
 				slog.Info("download completed", "title", dl.Title, "path", localPath)
 				s.updateDownloadStatus(ctx, dl.ID, models.StateCompleted)
+				s.tryImportNZBGet(ctx, ng, dl, item.NZBID, localPath)
+			} else if dl.Status == models.StateImportFailed && dl.ImportRetryCount < importRetryLimit {
+				// Bug #7: retry a previously failed import.
+				localPath := s.remapper.Apply(item.DestDir)
+				slog.Info("retrying failed import", "title", dl.Title, "path", localPath,
+					"attempt", dl.ImportRetryCount+1, "limit", importRetryLimit)
+				if err := s.downloads.IncrementImportRetryCount(ctx, dl.ID); err != nil {
+					slog.Warn("failed to increment import retry count", "download_id", dl.ID, "error", err)
+				}
 				s.tryImportNZBGet(ctx, ng, dl, item.NZBID, localPath)
 			}
 		} else if nzbget.IsFailure(item.Status) {
@@ -455,6 +486,14 @@ func (s *Scanner) checkTransmissionDownloads(ctx context.Context, client *models
 			slog.Info("download completed", "title", dl.Title, "path", torrent.DownloadDir)
 			s.updateDownloadStatus(ctx, dl.ID, models.StateCompleted)
 			s.tryImportTransmission(ctx, &dl, torrent.DownloadDir)
+		} else if isComplete && dl.Status == models.StateImportFailed && dl.ImportRetryCount < importRetryLimit {
+			// Bug #7: retry a previously failed import.
+			slog.Info("retrying failed import", "title", dl.Title, "path", torrent.DownloadDir,
+				"attempt", dl.ImportRetryCount+1, "limit", importRetryLimit)
+			if err := s.downloads.IncrementImportRetryCount(ctx, dl.ID); err != nil {
+				slog.Warn("failed to increment import retry count", "download_id", dl.ID, "error", err)
+			}
+			s.tryImportTransmission(ctx, &dl, torrent.DownloadDir)
 		} else if isStopped && !isComplete && dl.Status != models.StateFailed {
 			if stopError == "" {
 				// Transmission also reports user-paused torrents as stopped.
@@ -501,15 +540,43 @@ func (s *Scanner) checkQbittorrentDownloads(ctx context.Context, client *models.
 		isFailed := strings.Contains(state, "error")
 
 		if isComplete && (dl.Status == models.StateDownloading || dl.Status == models.StateGrabbed) {
-			downloadPath := torrent.SavePath
-			candidate := filepath.Join(torrent.SavePath, torrent.Name)
-			if _, err := os.Stat(candidate); err == nil {
-				downloadPath = candidate
+			rawPath, ok := resolveQbitContentPath(torrent)
+			if !ok {
+				// Path doesn't exist on disk yet (qBittorrent may sanitise characters
+				// in the torrent name that differ from what the API reports, e.g. ':'→'_').
+				// Do NOT fall back to torrent.SavePath — for multi-file torrents that is
+				// the shared download root and walking it would import every unrelated file.
+				// Leave the status unchanged so the next check cycle retries.
+				slog.Warn("qbittorrent: content path not found, will retry next cycle",
+					"title", dl.Title,
+					"save_path", torrent.SavePath,
+					"name", torrent.Name)
+				continue
 			}
-			downloadPath = s.remapper.Apply(downloadPath)
+			downloadPath := s.remapper.Apply(rawPath)
 
 			slog.Info("download completed", "title", dl.Title, "path", downloadPath)
 			s.updateDownloadStatus(ctx, dl.ID, models.StateCompleted)
+			s.tryImportQbittorrent(ctx, &dl, downloadPath)
+		} else if isComplete && dl.Status == models.StateImportFailed && dl.ImportRetryCount < importRetryLimit {
+			// Bug #7: a previous import attempt failed (e.g. transient filesystem
+			// error, path mismatch). The torrent is still seeding so we have the
+			// files — retry the import rather than leaving it stuck permanently.
+			rawPath, ok := resolveQbitContentPath(torrent)
+			if !ok {
+				slog.Warn("qbittorrent: content path not found during import retry, will retry next cycle",
+					"title", dl.Title,
+					"save_path", torrent.SavePath,
+					"name", torrent.Name,
+					"attempt", dl.ImportRetryCount+1)
+				continue
+			}
+			downloadPath := s.remapper.Apply(rawPath)
+			slog.Info("retrying failed import", "title", dl.Title, "path", downloadPath,
+				"attempt", dl.ImportRetryCount+1, "limit", importRetryLimit)
+			if err := s.downloads.IncrementImportRetryCount(ctx, dl.ID); err != nil {
+				slog.Warn("failed to increment import retry count", "download_id", dl.ID, "error", err)
+			}
 			s.tryImportQbittorrent(ctx, &dl, downloadPath)
 		} else if isFailed && dl.Status != models.StateFailed {
 			slog.Warn("download failed", "title", dl.Title, "state", torrent.State)
@@ -537,6 +604,29 @@ func (s *Scanner) tryImportQbittorrent(ctx context.Context, dl *models.Download,
 	s.tryImportInternal(ctx, dl, downloadPath, "qbittorrent", safeRemoteID(dl.TorrentID), nil)
 }
 
+// resolveQbitContentPath returns the on-disk content path for a completed torrent.
+//
+// qBittorrent ≥ 4.1.x populates content_path with the authoritative on-disk path,
+// correctly reflecting any character sanitisation it applied to the torrent name
+// (e.g. ':' → '_'). When content_path is available it is used directly.
+//
+// For older clients that omit content_path the function falls back to
+// filepath.Join(SavePath, Name) and verifies the path exists with os.Stat.
+//
+// SavePath is deliberately never returned on its own. For multi-file torrents
+// SavePath is the shared download root; falling back to it would cause Bindery
+// to walk and import every unrelated file in that directory.
+func resolveQbitContentPath(t qbittorrent.Torrent) (string, bool) {
+	if t.ContentPath != "" {
+		return t.ContentPath, true
+	}
+	candidate := filepath.Join(t.SavePath, t.Name)
+	if _, err := os.Stat(candidate); err == nil {
+		return candidate, true
+	}
+	return "", false
+}
+
 // tryImportInternal is the common import logic shared by SABnzbd and Transmission.
 func (s *Scanner) tryImportInternal(ctx context.Context, dl *models.Download, downloadPath, cleanupClientType, cleanupRemoteID string, cleanupFunc func() error) {
 	if s.libraryDir == "" {
@@ -551,7 +641,7 @@ func (s *Scanner) tryImportInternal(ctx context.Context, dl *models.Download, do
 	// External mode: skip all file operations and reset the book to wanted so
 	// the library scan can reconcile it after the user's external tool (Calibre,
 	// Grimmory, etc.) processes and places the file in the library directory.
-	if s.importMode(ctx) == "external" {
+	if s.importMode(ctx, downloadPath, s.libraryDir) == "external" {
 		if dl.BookID != nil {
 			if b, err := s.books.GetByID(ctx, *dl.BookID); err == nil && b != nil {
 				b.Status = models.BookStatusWanted
@@ -639,7 +729,7 @@ func (s *Scanner) tryImportInternal(ctx context.Context, dl *models.Download, do
 			return
 		}
 		destDir := UniqueDir(audiobookDest)
-		mode := s.importMode(ctx)
+		mode := s.importMode(ctx, downloadPath, destDir)
 		slog.Info("importing audiobook folder", "src", downloadPath, "dst", destDir, "mode", mode)
 		// Single-file audiobook releases (e.g. a lone .m4b from a torrent) give
 		// us a file path rather than a folder. MoveDir/CopyDir/HardlinkDir all
@@ -722,7 +812,7 @@ func (s *Scanner) tryImportInternal(ctx context.Context, dl *models.Download, do
 			failed++
 			continue
 		}
-		mode := s.importMode(ctx)
+		mode := s.importMode(ctx, srcFile, destPath)
 		slog.Info("importing book", "src", srcFile, "dst", destPath, "mode", mode)
 
 		var fileErr error
@@ -779,7 +869,7 @@ func (s *Scanner) tryImportInternal(ctx context.Context, dl *models.Download, do
 	// them so the folder is removed. For "copy"/"hardlink" modes the source must
 	// be preserved so the torrent client can continue seeding.
 	if imported > 0 && failed == 0 {
-		if s.importMode(ctx) == "move" {
+		if s.importMode(ctx, downloadPath, s.libraryDir) == "move" {
 			if err := os.RemoveAll(downloadPath); err != nil {
 				slog.Warn("failed to remove download folder after import", "path", downloadPath, "error", err)
 			}

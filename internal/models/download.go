@@ -45,6 +45,7 @@ type Download struct {
 	GrabbedAt        *time.Time    `json:"grabbedAt"`
 	CompletedAt      *time.Time    `json:"completedAt"`
 	ImportedAt       *time.Time    `json:"importedAt"`
+	ImportRetryCount int           `json:"importRetryCount"`
 }
 
 // Legacy status aliases — callers should prefer the typed State* constants in
