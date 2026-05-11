@@ -4,7 +4,7 @@ package transmission
 type Torrent struct {
 	ID             int64    `json:"id"`
 	HashString     string   `json:"hashString"`
-	Name           string   `json:"name"`
+	Name           string   `json:"name"` // torrent name; content lives at filepath.Join(DownloadDir, Name)
 	TotalSize      int64    `json:"totalSize"`
 	DownloadedEver int64    `json:"downloadedEver"`
 	LeftUntilDone  int64    `json:"leftUntilDone"`

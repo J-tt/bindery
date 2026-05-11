@@ -293,6 +293,38 @@ inspecting the file path.
 
 ---
 
+## Bug 14: Transmission import walks shared download root instead of torrent content path ✓ Fixed
+
+**File:** `internal/importer/scanner.go` — `checkTransmissionDownloads()`
+
+**Description:** `checkTransmissionDownloads` passed `torrent.DownloadDir` directly as
+`downloadPath` to `tryImportInternal`. `DownloadDir` is Transmission's *parent* save
+directory (e.g. `/downloads/books/`), not the individual torrent's content directory
+(`/downloads/books/Dune/`). `tryImportInternal` then calls `filepath.Walk(downloadPath)`
+which recursively finds book files across *all* subdirectories in that root — not just
+the torrent being processed.
+
+This is identical in impact to Bug #3 (qBittorrent SavePath fallback) but affects
+Transmission. All completed torrents that share a common download root are at risk.
+
+**Symptoms:**
+- Multiple book files imported for a single download record (one per torrent in the root)
+- Incorrect `.mobi` or `.azw3` stubs created in the library for unrelated torrents
+- Download status shows `imported` even though wrong files were used
+
+**Workaround:** Configure Transmission to download each book torrent to a unique
+subdirectory (e.g. using Transmission's per-torrent download path). This makes
+`DownloadDir` unique per torrent and equivalent to the content path.
+
+**Fix:** Added `resolveTransmissionContentPath(t transmission.Torrent)` which computes
+`filepath.Join(DownloadDir, Name)` and verifies the path exists with `os.Stat` before
+returning it. `checkTransmissionDownloads` now uses this resolved path for both the
+initial import and the Bug #7 retry path. If the content path is absent (torrent still
+flushing to disk), the download is left in its current state so the next poll cycle
+retries — matching qBittorrent's behaviour.
+
+---
+
 ## Notes
 
 - NZBgeek consistently times out when routed through `get.jett.sh/prowlarr` (Caddy reverse

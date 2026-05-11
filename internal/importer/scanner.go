@@ -510,18 +510,38 @@ func (s *Scanner) checkTransmissionDownloads(ctx context.Context, client *models
 
 		switch {
 		case isComplete && (dl.Status == models.StateDownloading || dl.Status == models.StateGrabbed):
-			// Download is complete
-			slog.Info("download completed", "title", dl.Title, "path", torrent.DownloadDir)
+			rawPath, ok := resolveTransmissionContentPath(torrent)
+			if !ok {
+				// Content directory doesn't exist yet (e.g. still flushing to
+				// disk). Leave status unchanged so the next cycle retries.
+				slog.Warn("transmission: content path not found, will retry next cycle",
+					"title", dl.Title,
+					"download_dir", torrent.DownloadDir,
+					"name", torrent.Name)
+				continue
+			}
+			downloadPath := s.remapper.Apply(rawPath)
+			slog.Info("download completed", "title", dl.Title, "path", downloadPath)
 			s.updateDownloadStatus(ctx, dl.ID, models.StateCompleted)
-			s.tryImportTransmission(ctx, &dl, torrent.DownloadDir)
+			s.tryImportTransmission(ctx, &dl, downloadPath)
 		case isComplete && dl.Status == models.StateImportFailed && dl.ImportRetryCount < importRetryLimit:
 			// Bug #7: retry a previously failed import.
-			slog.Info("retrying failed import", "title", dl.Title, "path", torrent.DownloadDir,
+			rawPath, ok := resolveTransmissionContentPath(torrent)
+			if !ok {
+				slog.Warn("transmission: content path not found during import retry, will retry next cycle",
+					"title", dl.Title,
+					"download_dir", torrent.DownloadDir,
+					"name", torrent.Name,
+					"attempt", dl.ImportRetryCount+1)
+				continue
+			}
+			downloadPath := s.remapper.Apply(rawPath)
+			slog.Info("retrying failed import", "title", dl.Title, "path", downloadPath,
 				"attempt", dl.ImportRetryCount+1, "limit", importRetryLimit)
 			if err := s.downloads.IncrementImportRetryCount(ctx, dl.ID); err != nil {
 				slog.Warn("failed to increment import retry count", "download_id", dl.ID, "error", err)
 			}
-			s.tryImportTransmission(ctx, &dl, torrent.DownloadDir)
+			s.tryImportTransmission(ctx, &dl, downloadPath)
 		case isStopped && !isComplete && dl.Status != models.StateFailed:
 			if stopError == "" {
 				// Transmission also reports user-paused torrents as stopped.
@@ -631,6 +651,26 @@ func (s *Scanner) tryImportTransmission(ctx context.Context, dl *models.Download
 
 func (s *Scanner) tryImportQbittorrent(ctx context.Context, dl *models.Download, downloadPath string) {
 	s.tryImportInternal(ctx, dl, downloadPath, "qbittorrent", safeRemoteID(dl.TorrentID), nil)
+}
+
+// resolveTransmissionContentPath returns the on-disk content path for a completed
+// Transmission torrent. Transmission has no explicit content_path field; the
+// content lives at filepath.Join(DownloadDir, Name). The path is verified with
+// os.Stat so that a transient flush delay causes a retry on the next poll cycle
+// rather than a misleading "no book files found" import failure.
+//
+// DownloadDir is deliberately never returned on its own. For multi-file torrents
+// it is the shared download root; returning it would cause Bindery to walk and
+// import every unrelated file in that directory (Bug #14).
+func resolveTransmissionContentPath(t transmission.Torrent) (string, bool) {
+	if t.Name == "" {
+		return "", false
+	}
+	candidate := filepath.Join(t.DownloadDir, t.Name)
+	if _, err := os.Stat(candidate); err == nil {
+		return candidate, true
+	}
+	return "", false
 }
 
 // resolveQbitContentPath returns the on-disk content path for a completed torrent.
