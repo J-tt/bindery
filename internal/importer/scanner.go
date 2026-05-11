@@ -393,8 +393,8 @@ func (s *Scanner) checkSABnzbdDownloads(ctx context.Context, client *models.Down
 				slog.Info("download completed", "title", dl.Title, "path", localPath)
 				s.updateDownloadStatus(ctx, dl.ID, models.StateCompleted)
 				s.tryImportSABnzbd(ctx, sab, dl, slot.NzoID, localPath)
-			} else if dl.Status == models.StateImportFailed && dl.ImportRetryCount < importRetryLimit {
-				// Bug #7: retry a previously failed import.
+			} else if (dl.Status == models.StateImportFailed || dl.Status == models.StateImportBlocked) && dl.ImportRetryCount < importRetryLimit {
+				// Bug #7 / #15: retry a previously failed or blocked import.
 				localPath := s.remapper.Apply(slot.Path)
 				slog.Info("retrying failed import", "title", dl.Title, "path", localPath,
 					"attempt", dl.ImportRetryCount+1, "limit", importRetryLimit)
@@ -440,8 +440,8 @@ func (s *Scanner) checkNZBGetDownloads(ctx context.Context, client *models.Downl
 				slog.Info("download completed", "title", dl.Title, "path", localPath)
 				s.updateDownloadStatus(ctx, dl.ID, models.StateCompleted)
 				s.tryImportNZBGet(ctx, ng, dl, item.NZBID, localPath)
-			} else if dl.Status == models.StateImportFailed && dl.ImportRetryCount < importRetryLimit {
-				// Bug #7: retry a previously failed import.
+			} else if (dl.Status == models.StateImportFailed || dl.Status == models.StateImportBlocked) && dl.ImportRetryCount < importRetryLimit {
+				// Bug #7 / #15: retry a previously failed or blocked import.
 				localPath := s.remapper.Apply(item.DestDir)
 				slog.Info("retrying failed import", "title", dl.Title, "path", localPath,
 					"attempt", dl.ImportRetryCount+1, "limit", importRetryLimit)
@@ -524,8 +524,8 @@ func (s *Scanner) checkTransmissionDownloads(ctx context.Context, client *models
 			slog.Info("download completed", "title", dl.Title, "path", downloadPath)
 			s.updateDownloadStatus(ctx, dl.ID, models.StateCompleted)
 			s.tryImportTransmission(ctx, &dl, downloadPath)
-		case isComplete && dl.Status == models.StateImportFailed && dl.ImportRetryCount < importRetryLimit:
-			// Bug #7: retry a previously failed import.
+		case isComplete && (dl.Status == models.StateImportFailed || dl.Status == models.StateImportBlocked) && dl.ImportRetryCount < importRetryLimit:
+			// Bug #7 / #15: retry a previously failed or blocked import.
 			rawPath, ok := resolveTransmissionContentPath(torrent)
 			if !ok {
 				slog.Warn("transmission: content path not found during import retry, will retry next cycle",
@@ -607,10 +607,9 @@ func (s *Scanner) checkQbittorrentDownloads(ctx context.Context, client *models.
 			slog.Info("download completed", "title", dl.Title, "path", downloadPath)
 			s.updateDownloadStatus(ctx, dl.ID, models.StateCompleted)
 			s.tryImportQbittorrent(ctx, &dl, downloadPath)
-		case isComplete && dl.Status == models.StateImportFailed && dl.ImportRetryCount < importRetryLimit:
-			// Bug #7: a previous import attempt failed (e.g. transient filesystem
-			// error, path mismatch). The torrent is still seeding so we have the
-			// files — retry the import rather than leaving it stuck permanently.
+		case isComplete && (dl.Status == models.StateImportFailed || dl.Status == models.StateImportBlocked) && dl.ImportRetryCount < importRetryLimit:
+			// Bug #7 / #15: retry a previously failed or blocked import. The torrent
+			// is still seeding so we have the files — retry rather than abandoning.
 			rawPath, ok := resolveQbitContentPath(torrent)
 			if !ok {
 				slog.Warn("qbittorrent: content path not found during import retry, will retry next cycle",

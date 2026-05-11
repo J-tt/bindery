@@ -325,6 +325,107 @@ retries — matching qBittorrent's behaviour.
 
 ---
 
+## Bug 15: `importBlocked` is a terminal state with no retry path ✓ Fixed
+
+**File:** `internal/models/download_state.go`, `internal/importer/scanner.go`
+
+**Description:** The state machine defines `StateImportBlocked: {}` — no valid transitions
+out of this state. The retry logic in all four `check*Downloads` loops only looks for
+`StateImportFailed`; items that land in `StateImportBlocked` are silently abandoned and
+never retried, regardless of whether the underlying cause has been resolved.
+
+`StateImportBlocked` is used for transient infrastructure failures (e.g. destination
+directory not writable, cross-filesystem hardlink when bind-mount sandboxing creates
+separate device namespaces) as well as genuinely permanent blocks (e.g. no library
+directory configured). The current design treats both the same way — permanent abandonment.
+
+**Impact:** Any item that hits a transient import error and lands in `importBlocked` is
+permanently stuck. The only recovery is a manual SQL update:
+```sql
+UPDATE downloads
+SET status = 'importFailed', import_retry_count = 0
+WHERE status = 'importBlocked';
+```
+Then restart the service to trigger the scanner. There is no UI action, no API endpoint,
+and no automatic retry.
+
+**Observed trigger:** Upgrading from a hand-rolled systemd unit (no `ProtectSystem`) to the
+flake's NixOS module (adds `ProtectSystem=strict` + per-path `ReadWritePaths` bind mounts).
+The separate bind mounts give distinct `st_dev` values even for directories on the same
+underlying ZFS pool, causing `link()` to return `EXDEV`. Fixed by collapsing all
+`/mnt/media` paths into a single `ReadWritePaths=/mnt/media` entry so one bind mount covers
+the entire tree.
+
+**Fix:** `StateImportBlocked` now has a valid transition to `StateImportPending`
+(`download_state.go`). All four `check*Downloads` loops (`checkQbittorrentDownloads`,
+`checkTransmissionDownloads`, `checkSABnzbdDownloads`, `checkNZBGetDownloads`) now treat
+`StateImportBlocked` identically to `StateImportFailed` for retry purposes — downloads in
+either state are retried up to `importRetryLimit` (3) times using the same
+`IncrementImportRetryCount` cap, so a resolved transient block is automatically recovered
+on the next poll cycle.
+
+---
+
+## Bug 16: Bulk search can auto-grab books not on the wanted list (false positive matches)
+
+**File:** `internal/importer/scanner.go` or search/grab pipeline
+
+**Description:** After triggering a large bulk search, books that were not explicitly wanted
+appeared in the download queue. Observed: "How the Irish Saved Civilization: The Untold
+Story of Ireland's Heroic Role from the Fall of Rome to the Rise of Medieval Europe -
+Thomas Cahill [MP3] [64 Kbps]" was grabbed without being on the wanted list.
+
+Likely cause: fuzzy title matching during bulk search is too permissive — a search term
+from a wanted book partially matched this title and it was auto-grabbed. Alternatively,
+the wanted list contained a book whose search query was broad enough to return unrelated
+results above the score threshold.
+
+**Impact:** Unwanted downloads consume bandwidth, disk space, and indexer request quota.
+With 1337x already rate-limited from bulk searches, false positive grabs compound the
+quota problem.
+
+**Fix needed:** Review the match scoring threshold used in auto-grab decisions during bulk
+searches. Consider requiring a higher confidence score for auto-grab vs. presenting
+lower-confidence results for manual review. Log the match score alongside the
+`auto-grabbing book` message so grabs can be audited.
+
+---
+
+## Bug 17: Queue UI shows no timestamps — impossible to distinguish new failures from old ones
+
+**Files:** Frontend queue view; `internal/db/downloads.go`; migrations
+
+**Description:** Two compounding problems:
+
+**17a — Timestamps not stored.** The `downloads` table has `added_at`, `grabbed_at`,
+`completed_at`, and `imported_at` columns but all are NULL for every row — none of the
+write paths populate them. Confirmed via direct DB inspection: `SELECT added_at, grabbed_at
+FROM downloads ORDER BY rowid DESC LIMIT 5` returns NULL for all rows. The schema defaults
+`added_at` to `CURRENT_TIMESTAMP` but the INSERT must be overriding it with NULL explicitly,
+or the ORM is not relying on the default.
+
+**17b — Timestamps not surfaced in the UI.** Even if timestamps were populated, the queue
+interface shows no temporal information — no grabbed time, no last-attempted time, no age.
+All items look identical regardless of whether they were grabbed 2 minutes ago or 6 months
+ago.
+
+**Impact:**
+- After a service restart or config change that resolves an underlying cause, there is no
+  way to tell which failures are newly occurring vs. which were already present before the
+  fix — the queue appears unchanged even when it isn't.
+- The only way to get any temporal context is raw SQL, and even that returns NULLs.
+- Makes triage slow and error-prone; a long-standing unresolvable failure looks identical
+  to a brand-new one that should be investigated immediately.
+
+**Fix needed:**
+1. Audit all INSERT/UPDATE paths in `downloads.go` to ensure `added_at` is set on insert
+   and `grabbed_at` / `completed_at` are set at the appropriate state transitions.
+2. Surface at minimum `added_at` and a `last_attempted_at` in the queue UI as relative
+   times ("3 hours ago"). The `import_retry_count` should also be visible so operators
+   know how many attempts remain before the item is permanently abandoned.
+
+---
+
 ## Notes
 
 - NZBgeek consistently times out when routed through `get.jett.sh/prowlarr` (Caddy reverse

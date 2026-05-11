@@ -131,6 +131,120 @@ func TestCheckQbittorrentDownloads_RetriesImportFailed(t *testing.T) {
 	}
 }
 
+// TestCheckQbittorrentDownloads_RetriesImportBlocked is the regression test for Bug #15.
+//
+// Scenario: a torrent is seeding in qBittorrent but its Bindery download record
+// is stuck in StateImportBlocked (e.g. destination directory was not writable due
+// to a bind-mount permission issue that has since been fixed). The scanner must
+// treat StateImportBlocked the same as StateImportFailed for retry purposes —
+// incrementing ImportRetryCount and re-attempting the import — rather than
+// leaving the download permanently abandoned.
+func TestCheckQbittorrentDownloads_RetriesImportBlocked(t *testing.T) {
+	downloadDir := t.TempDir()
+	epubPath := filepath.Join(downloadDir, "blockedbook.epub")
+	if err := os.WriteFile(epubPath, []byte("epub-content"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	libraryDir := t.TempDir()
+
+	const torrentHash = "cafebabe1234567890cafebabe1234567890cafe"
+
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch r.URL.Path {
+		case "/api/v2/auth/login":
+			_, _ = w.Write([]byte("Ok."))
+		case "/api/v2/torrents/info":
+			torrents := []map[string]any{{
+				"hash":         torrentHash,
+				"name":         "blockedbook",
+				"state":        "stalledUP",
+				"progress":     1.0,
+				"save_path":    downloadDir,
+				"content_path": epubPath,
+			}}
+			_ = json.NewEncoder(w).Encode(torrents)
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer srv.Close()
+
+	database, err := db.OpenMemory()
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { database.Close() })
+
+	ctx := context.Background()
+	dlRepo := db.NewDownloadRepo(database)
+	clientRepo := db.NewDownloadClientRepo(database)
+	bookRepo := db.NewBookRepo(database)
+	authorRepo := db.NewAuthorRepo(database)
+	histRepo := db.NewHistoryRepo(database)
+
+	s := NewScanner(dlRepo, clientRepo, bookRepo, authorRepo, histRepo, libraryDir, "", "", "", "")
+
+	host, port := scannerTestHostPort(t, srv.URL)
+	client := &models.DownloadClient{
+		Name:    "qbit-bug15",
+		Type:    "qbittorrent",
+		Host:    host,
+		Port:    port,
+		Enabled: true,
+	}
+	if err := clientRepo.Create(ctx, client); err != nil {
+		t.Fatalf("create client: %v", err)
+	}
+
+	hash := torrentHash
+	dl := &models.Download{
+		GUID:             "guid-bug15",
+		Title:            "blockedbook",
+		NZBURL:           "magnet:?xt=urn:btih:" + torrentHash,
+		Status:           models.StateImportBlocked,
+		Protocol:         "torrent",
+		TorrentID:        &hash,
+		DownloadClientID: &client.ID,
+	}
+	if err := dlRepo.Create(ctx, dl); err != nil {
+		t.Fatalf("create download: %v", err)
+	}
+
+	// First cycle: download is in StateImportBlocked with ImportRetryCount=0.
+	// The scanner must attempt a retry and increment the counter.
+	s.checkQbittorrentDownloads(ctx, client)
+
+	got, err := dlRepo.GetByGUID(ctx, dl.GUID)
+	if err != nil {
+		t.Fatalf("get download after first retry: %v", err)
+	}
+	if got.ImportRetryCount != 1 {
+		t.Errorf("Bug #15 regression: after first retry cycle expected ImportRetryCount=1, got %d; importBlocked was not retried", got.ImportRetryCount)
+	}
+
+	// Drive the counter up to the retry cap.
+	for got.ImportRetryCount < importRetryLimit {
+		s.checkQbittorrentDownloads(ctx, client)
+		got, err = dlRepo.GetByGUID(ctx, dl.GUID)
+		if err != nil {
+			t.Fatalf("get download: %v", err)
+		}
+	}
+	if got.ImportRetryCount != importRetryLimit {
+		t.Fatalf("expected ImportRetryCount=%d at cap, got %d", importRetryLimit, got.ImportRetryCount)
+	}
+
+	// One more cycle: counter must NOT exceed the cap.
+	s.checkQbittorrentDownloads(ctx, client)
+	got, err = dlRepo.GetByGUID(ctx, dl.GUID)
+	if err != nil {
+		t.Fatalf("get download after cap: %v", err)
+	}
+	if got.ImportRetryCount > importRetryLimit {
+		t.Errorf("Bug #15 regression: ImportRetryCount exceeded cap %d (got %d); scanner did not stop retrying", importRetryLimit, got.ImportRetryCount)
+	}
+}
+
 // TestResolveQbitContentPath_ContentPathSet — when the qBittorrent API
 // populates content_path (≥4.1.x), use it directly without a stat call.
 // This is the fast path: the client already knows the real on-disk path

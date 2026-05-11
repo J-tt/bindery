@@ -30,7 +30,7 @@ var validTransitions = map[DownloadState][]DownloadState{
 	StateImported:      {},
 	StateFailed:        {},
 	StateImportFailed:  {StateImportPending},
-	StateImportBlocked: {},
+	StateImportBlocked: {StateImportPending},
 }
 
 // CanTransitionTo reports whether a transition from s to next is valid.
