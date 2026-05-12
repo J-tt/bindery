@@ -452,6 +452,29 @@ ago.
 
 ---
 
+## Bug 18: Bindery re-downloads a book already present as a nested file inside a multi-book torrent
+
+**Files:** `internal/importer/` (scanner / check-downloads path)
+
+**Description:** When a previously-grabbed multi-book torrent contains a wanted title as a
+nested file (e.g. `The Bound and the Broken (Ryan Cahill)/01 - Of Blood And Fire [2021]/00.5 - The Fall [2021]/The Fall (Ryan Cahill) [2021].epub`), bindery does not walk the torrent's subdirectory tree to find it. Instead it treats the book as missing and kicks off a fresh grab, downloading a separate standalone copy.
+
+**Observed instance (2026-05-13):** The series torrent "The Bound and the Broken (Ryan
+Cahill) {Derek Perkins}" had been in the completed directory since 2026-05-09 and contained
+`The Fall (Ryan Cahill) [2021].epub` (1.5 MB) at depth 3. When a full library search ran on
+2026-05-13, bindery grabbed "The Fall: An Epic Fantasy Adventure by Ryan Cahill [ENG / EPUB]"
+from MyAnonamouse (218 KB, lower quality) rather than matching the existing nested file.
+The better copy was manually hardlinked into the library as a workaround.
+
+**Expected behaviour:** The check-downloads scanner (or a pre-grab existence check) should
+walk subdirectories of completed multi-book torrents and match nested files against wanted
+books before issuing a new grab.
+
+**Impact:** Wastes bandwidth, grabs lower-quality files when a better copy is already local,
+and pollutes the download queue with redundant entries.
+
+---
+
 ## Notes
 
 - NZBgeek consistently times out when routed through `get.jett.sh/prowlarr` (Caddy reverse
