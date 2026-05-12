@@ -366,28 +366,46 @@ on the next poll cycle.
 
 ---
 
-## Bug 16: Bulk search can auto-grab books not on the wanted list (false positive matches)
+## Bug 16: Author name token matching fires across different people in multi-author releases (false positive grabs)
 
-**File:** `internal/importer/scanner.go` or search/grab pipeline
+**Upstream:** vavallee/bindery#563 (open, no fix yet)
 
-**Description:** After triggering a large bulk search, books that were not explicitly wanted
-appeared in the download queue. Observed: "How the Irish Saved Civilization: The Untold
-Story of Ireland's Heroic Role from the Fall of Rome to the Rise of Medieval Europe -
-Thomas Cahill [MP3] [64 Kbps]" was grabbed without being on the wanted list.
+**File:** search/grab relevance pipeline — author matching logic
 
-Likely cause: fuzzy title matching during bulk search is too permissive — a search term
-from a wanted book partially matched this title and it was auto-grabbed. Alternatively,
-the wanted list contained a book whose search query was broad enough to return unrelated
-results above the score threshold.
+**Description:** The author relevance check tokenises the monitored author's name and
+checks whether all tokens appear anywhere in the release's author field. It does not verify
+that the tokens belong to the same individual. In a multi-author release this causes false
+positives: monitored author "Rachel Reid" matches a release credited to "Rachel Larsen,
+Adam Reid, and Ozi Akturk" because the tokens "Rachel" and "Reid" both appear — but on
+different people.
+
+The same mechanism triggers on shared surnames in single-author releases. Observed locally:
+monitored "Ryan Cahill" auto-grabbed "How the Irish Saved Civilization - Thomas Cahill
+[MP3] [64 Kbps]" (grabbed 2026-05-11 18:24) — "Cahill" matched the surname, and the
+shared token was enough to clear the auto-grab threshold.
+
+**Observed instance (2026-05-11):**
+- Monitored author: `Ryan Cahill` — wanted book: `The Fall`
+- Release grabbed: `How the Irish Saved Civilization: The Untold Story of Irelands Heroic Role from the Fall of Rome to the Rise of Medieval Europe - Thomas Cahill [MP3] [64 Kbps]`
+- Author field in release: `Thomas Cahill` (single author, not multi-author)
+- Imported to: `Ryan Cahill/The Fall (2021)/`
+- Token `Cahill` matched the surname; `Ryan` likely matched via `"from the Fall of Rome"` in the title string
+
+Relevant log lines:
+```
+{"msg":"auto-grabbing book","book":"The Fall","author":"Ryan Cahill","format":"audiobook","result":"How the Irish Saved Civilization: The Untold Story of Irelands Heroic Role from the Fall of Rome to the Rise of Medieval Europe - Thomas Cahill [MP3] [64 Kbps]","indexer":"Audiobookbay","protocol":"torrent","client":"qBittorrent","size":236778944}
+{"msg":"download completed","title":"How the Irish Saved Civilization: The Untold Story of Irelands Heroic Role from the Fall of Rome to the Rise of Medieval Europe - Thomas Cahill [MP3] [64 Kbps]","path":"/mnt/media/downloads/complete/Thomas Cahill - How the Irish Saved Civilization"}
+{"msg":"importing audiobook folder","src":"/mnt/media/downloads/complete/Thomas Cahill - How the Irish Saved Civilization","dst":"/mnt/media/audiobooks/Ryan Cahill/The Fall (2021)","mode":"hardlink"}
+```
 
 **Impact:** Unwanted downloads consume bandwidth, disk space, and indexer request quota.
 With 1337x already rate-limited from bulk searches, false positive grabs compound the
 quota problem.
 
-**Fix needed:** Review the match scoring threshold used in auto-grab decisions during bulk
-searches. Consider requiring a higher confidence score for auto-grab vs. presenting
-lower-confidence results for manual review. Log the match score alongside the
-`auto-grabbing book` message so grabs can be audited.
+**Fix needed:** Author token matching should require all name tokens to appear within a
+single author entry (i.e. after splitting the author field on commas/semicolons), not
+anywhere in the combined string. Upstream issue vavallee/bindery#563 is open; no fix
+merged as of 2026-05-12.
 
 ---
 
