@@ -777,3 +777,90 @@ func TestFilterRelevantNonLatinAuthor(t *testing.T) {
 		t.Error("unrelated result should still be filtered out even with aliases")
 	}
 }
+
+// TestFilterRelevantBug16_SharedSurname is the regression test for Bug #16
+// failure step 1.
+//
+// Observed 2026-05-11: Bindery searched for "The Fall" by "Ryan Cahill" and
+// auto-grabbed "How the Irish Saved Civilization … - Thomas Cahill [MP3]" from
+// Audiobookbay. Root cause: "The Fall" has one significant keyword ("fall"), so
+// titleMatchesResult requires that keyword AND the monitored author surname
+// ("cahill") to appear in the normalised release string. Both do appear, but on
+// different people: "fall" matches the subtitle phrase "from the Fall of Rome"
+// and "cahill" matches the release author "Thomas Cahill". filterRelevant checks
+// tokens anywhere in the combined release string rather than requiring all name
+// tokens to belong to a single contiguous author entry.
+func TestFilterRelevantBug16_SharedSurname(t *testing.T) {
+	cases := []struct {
+		desc         string
+		bookTitle    string
+		bookAuthor   string
+		releaseTitle string
+		wantPass     bool
+	}{
+		// Observed incident: title keyword "fall" appears in the subtitle of the
+		// wrong book, and "cahill" matches a different person's surname.
+		{
+			desc:         "title keyword in subtitle of unrelated book, shared surname",
+			bookTitle:    "The Fall",
+			bookAuthor:   "Ryan Cahill",
+			releaseTitle: "How the Irish Saved Civilization: The Untold Story of Irelands Heroic Role from the Fall of Rome to the Rise of Medieval Europe - Thomas Cahill [MP3] [64 Kbps]",
+			wantPass:     false,
+		},
+		// The correct release for the same search must still pass.
+		{
+			desc:         "correct release for monitored author passes",
+			bookTitle:    "The Fall",
+			bookAuthor:   "Ryan Cahill",
+			releaseTitle: "Ryan Cahill - The Fall (2021) [MP3]",
+			wantPass:     true,
+		},
+		// A surname-only variant: different first names, same last name.
+		{
+			desc:         "shared surname with different first name",
+			bookTitle:    "Ascent",
+			bookAuthor:   "Michael Grant",
+			releaseTitle: "Ulysses Grant - Ascent [MP3]",
+			wantPass:     false,
+		},
+		// A release where all tokens genuinely belong to the right author.
+		{
+			desc:         "all name tokens match the correct person",
+			bookTitle:    "Ascent",
+			bookAuthor:   "Michael Grant",
+			releaseTitle: "Michael Grant - Ascent (2023) [UNABRIDGED] [MP3]",
+			wantPass:     true,
+		},
+		// Multi-author release: first name matches one person, last name another.
+		{
+			desc:         "multi-author release where tokens span different people",
+			bookTitle:    "Legends",
+			bookAuthor:   "Rachel Reid",
+			releaseTitle: "Rachel Larsen, Adam Reid, and Ozi Akturk - Legends [MP3]",
+			wantPass:     false,
+		},
+		// Release that correctly credits the monitored author as the sole author.
+		{
+			desc:         "monitored author is sole credited author",
+			bookTitle:    "Legends",
+			bookAuthor:   "Rachel Reid",
+			releaseTitle: "Rachel Reid - Legends (2022) [M4B]",
+			wantPass:     true,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.desc, func(t *testing.T) {
+			got := filterRelevant(toResults(tc.releaseTitle), tc.bookTitle, tc.bookAuthor, nil)
+			passed := contains(got, tc.releaseTitle)
+			if tc.wantPass && !passed {
+				t.Errorf("filterRelevant(%q, %q): expected %q to pass but it was filtered out",
+					tc.bookTitle, tc.bookAuthor, tc.releaseTitle)
+			}
+			if !tc.wantPass && passed {
+				t.Errorf("filterRelevant(%q, %q): expected %q to be rejected (shared surname / cross-person token match) but it passed",
+					tc.bookTitle, tc.bookAuthor, tc.releaseTitle)
+			}
+		})
+	}
+}

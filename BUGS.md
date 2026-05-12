@@ -407,6 +407,14 @@ single author entry (i.e. after splitting the author field on commas/semicolons)
 anywhere in the combined string. Upstream issue vavallee/bindery#563 is open; no fix
 merged as of 2026-05-12.
 
+**Second failure mode (import):** Once a release is grabbed for the wrong book,
+`tryImportInternal` trusts `dl.BookID` unconditionally — it resolves the target author
+and book from the DB record and calls `AudiobookDestDir` without cross-checking the
+download folder name or audio tags against the target author. Content from "Thomas
+Cahill - How the Irish Saved Civilization" was silently placed into `Ryan Cahill/The
+Fall (2021)/` with no mismatch detection. No independent fix applied here; the root
+cause is the false-positive grab at step 1.
+
 ---
 
 ## Bug 17: Queue UI shows no timestamps — impossible to distinguish new failures from old ones ✓ Fixed

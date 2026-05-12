@@ -335,9 +335,41 @@ func filterRelevant(results []newznab.SearchResult, title, author string, aliase
 		normTitles[i] = NormalizeRelease(r.Title)
 	}
 
+	// For single/zero significant-keyword titles the surname-anywhere check
+	// inside titleMatchesResult is too loose — it fires when the surname appears
+	// on a *different* person's name in the release (Bug #16). Build the author
+	// candidates once for the per-result segment check below.
+	type authorCandidate struct {
+		kws     []string
+		surname string
+	}
+	authorCandidates := []authorCandidate{{authorKws, surname}}
+	if !isAllASCIILower(surname) {
+		for _, alias := range aliases {
+			if sn := AuthorSurname(alias); sn != "" && isAllASCIILower(sn) {
+				authorCandidates = append(authorCandidates, authorCandidate{sigWords(alias), sn})
+			}
+		}
+	}
+
 	filtered := make([]newznab.SearchResult, 0, len(results))
 	for i, r := range results {
 		n := normTitles[i]
+
+		// Fast path: when the indexer provides structured torznab:attr author and
+		// title fields, match against those directly instead of parsing the release
+		// name heuristically. This is unambiguous and immune to the cross-person
+		// token problems that motivated the heuristic path (Bug #16).
+		if r.Author != "" && r.BookTitle != "" {
+			normBookTitle := NormalizeRelease(r.BookTitle)
+			titleOK := len(fullKws) == 0 ||
+				ContainsPhrase(normBookTitle, fullKws) ||
+				(len(primaryKws) > 0 && !sameKws(primaryKws, fullKws) && ContainsPhrase(normBookTitle, primaryKws))
+			if titleOK && structuredAuthorMatches(r.Author, author, aliases) {
+				filtered = append(filtered, r)
+			}
+			continue
+		}
 
 		// allowFallback=true: each result gets phrase match first, then keyword
 		// fallback if the phrase fails. No batch-level gate.
@@ -346,9 +378,29 @@ func filterRelevant(results []newznab.SearchResult, title, author string, aliase
 		if !fullOK && len(primaryKws) > 0 && !sameKws(primaryKws, fullKws) {
 			primaryOK = tryMatch(n, primaryKws)
 		}
-		if fullOK || primaryOK {
-			filtered = append(filtered, r)
+		if !fullOK && !primaryOK {
+			continue
 		}
+
+		// For titles with ≤1 significant keyword the title match alone is not
+		// specific enough to confirm authorship. Require the full author name to
+		// appear as a contiguous phrase within one of the dash-separated segments
+		// of the release title rather than accepting a surname that appears
+		// anywhere in the string (which allows cross-person token matches).
+		if len(fullKws) <= 1 && isAllASCIILower(surname) {
+			authorOK := false
+			for _, c := range authorCandidates {
+				if authorInRelease(r.Title, c.kws, c.surname) {
+					authorOK = true
+					break
+				}
+			}
+			if !authorOK {
+				continue
+			}
+		}
+
+		filtered = append(filtered, r)
 	}
 	return filtered
 }
@@ -363,6 +415,61 @@ func isAllASCIILower(s string) bool {
 		}
 	}
 	return true
+}
+
+// structuredAuthorMatches returns true when the author field from a
+// torznab:attr element plausibly matches the monitored author or one of their
+// aliases. Token order is ignored so that "Surname, Given" and "Given Surname"
+// both match; all significant-word tokens must be present at word boundaries.
+func structuredAuthorMatches(resultAuthor, monitoredAuthor string, aliases []string) bool {
+	norm := NormalizeRelease(resultAuthor)
+	check := func(name string) bool {
+		kws := sigWords(name)
+		if len(kws) == 0 {
+			return false
+		}
+		for _, kw := range kws {
+			if !WordBoundaryRegex(kw).MatchString(norm) {
+				return false
+			}
+		}
+		return true
+	}
+	if check(monitoredAuthor) {
+		return true
+	}
+	for _, alias := range aliases {
+		if check(alias) {
+			return true
+		}
+	}
+	return false
+}
+
+// authorInRelease returns true if the full normalised author name appears as a
+// contiguous phrase in at least one segment of rawTitle. Segments are delimited
+// by the release title separator matched by dashSepRe (" - " or ".-." etc.).
+// When the title has no recognisable separator the check runs against the full
+// normalised string. Falls back to a word-boundary surname check when authorKws
+// is empty (e.g. non-ASCII authors whose sigWords are empty).
+func authorInRelease(rawTitle string, authorKws []string, surname string) bool {
+	if len(authorKws) == 0 {
+		return surname != "" && WordBoundaryRegex(surname).MatchString(NormalizeRelease(rawTitle))
+	}
+	segments := dashSepRe.Split(rawTitle, -1)
+	if len(segments) == 1 {
+		// No recognisable author/title separator found — the release uses a
+		// flat dot/underscore naming convention ("Title.Surname.epub"). These
+		// conventionally include only the surname, so fall back to the looser
+		// surname word-boundary check rather than requiring the full name phrase.
+		return surname != "" && WordBoundaryRegex(surname).MatchString(NormalizeRelease(rawTitle))
+	}
+	for _, seg := range segments {
+		if ContainsPhrase(NormalizeRelease(seg), authorKws) {
+			return true
+		}
+	}
+	return false
 }
 
 func sameKws(a, b []string) bool {
@@ -491,6 +598,14 @@ func scoreResult(r newznab.SearchResult, c MatchCriteria) float64 {
 		score += 250
 	}
 
+	// Structured metadata boost: the indexer provided explicit torznab:attr
+	// author and title fields, so the filter match was against real database
+	// values rather than heuristic release-name parsing. Prefer these results
+	// over same-quality heuristic matches but don't override large format gaps.
+	if r.Author != "" && r.BookTitle != "" {
+		score += 100
+	}
+
 	return score
 }
 
@@ -510,6 +625,11 @@ func isAudiobookFormat(format string) bool {
 // markers, and "[N/M]" post-index brackets. Grabbing one of these
 // produces a partial/unusable download, so they're filtered upstream
 // rather than ranked.
+// dashSepRe matches the author/title segment delimiter in release titles.
+// Covers both the standard space-dash-space form (" - ") and the dot-separated
+// Usenet convention (".-." or "Author.Name.-.Book.Title.MP3").
+var dashSepRe = regexp.MustCompile(`[. ]+-[. ]+`)
+
 var usenetJunkRe = regexp.MustCompile(
 	`(?i)` +
 		`\.part\d+\.rar\b` + `|` + // File.part03.rar
