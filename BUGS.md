@@ -409,7 +409,7 @@ merged as of 2026-05-12.
 
 ---
 
-## Bug 17: Queue UI shows no timestamps — impossible to distinguish new failures from old ones
+## Bug 17: Queue UI shows no timestamps — impossible to distinguish new failures from old ones ✓ Fixed
 
 **Files:** Frontend queue view; `internal/db/downloads.go`; migrations
 
@@ -435,12 +435,12 @@ ago.
 - Makes triage slow and error-prone; a long-standing unresolvable failure looks identical
   to a brand-new one that should be investigated immediately.
 
-**Fix needed:**
-1. Audit all INSERT/UPDATE paths in `downloads.go` to ensure `added_at` is set on insert
-   and `grabbed_at` / `completed_at` are set at the appropriate state transitions.
-2. Surface at minimum `added_at` and a `last_attempted_at` in the queue UI as relative
-   times ("3 hours ago"). The `import_retry_count` should also be visible so operators
-   know how many attempts remain before the item is permanently abandoned.
+**Fix:**
+1. `DownloadRepo.Create` now explicitly passes `now` for `added_at`; `Transition` sets
+   `grabbed_at`, `completed_at`, and `imported_at` at the appropriate state changes.
+2. Frontend: `Download` interface gains `addedAt`, `grabbedAt`, and `importRetryCount`
+   fields. Queue rows now display a relative timestamp (`3h ago`) and retry count
+   (`attempt 2 of 3`) so operators can tell new failures from stale ones at a glance.
 
 ---
 

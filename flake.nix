@@ -32,7 +32,7 @@
       src = ./web;
       nodejs = pkgs.nodejs_22;
       # Regenerate with: nix run nixpkgs#prefetch-npm-deps -- web/package-lock.json
-      npmDepsHash = "sha256-Cp/5duBdsvBpcE11vCzx/PpvttSfj8tEEuXGik0QOnQ=";
+      npmDepsHash = "sha256-Gya3s6vkzSoSnMjUVlQSuiPyuKA+0DNEB80EeBQHhBg=";
       npmBuildScript = "build";
       installPhase = ''
         runHook preInstall
@@ -98,7 +98,7 @@
         inherit version;
         src = ./web;
         nodejs = pkgs.nodejs_22;
-        npmDepsHash = "sha256-Cp/5duBdsvBpcE11vCzx/PpvttSfj8tEEuXGik0QOnQ=";
+        npmDepsHash = "sha256-Gya3s6vkzSoSnMjUVlQSuiPyuKA+0DNEB80EeBQHhBg=";
         npmBuildScript = "test";
         installPhase = "touch $out";
       };

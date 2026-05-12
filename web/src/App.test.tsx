@@ -57,7 +57,7 @@ describe('Shell — desktop navigation', () => {
     renderShell()
     const desktopNav = document.querySelector('nav.hidden.lg\\:flex')
     expect(desktopNav).not.toBeNull()
-    const links = desktopNav?.querySelectorAll('a')
+    const links = desktopNav!.querySelectorAll('a')
     expect(links.length).toBe(8)
     const labels = Array.from(links).map(l => l.textContent)
     expect(labels).toContain('Authors')

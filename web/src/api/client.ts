@@ -922,6 +922,9 @@ export interface Download {
   size: number
   protocol: string
   errorMessage: string
+  addedAt: string
+  grabbedAt?: string
+  importRetryCount?: number
 }
 
 export interface QueueItem extends Download {

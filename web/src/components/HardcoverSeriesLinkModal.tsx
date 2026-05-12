@@ -22,7 +22,6 @@ export default function HardcoverSeriesLinkModal({ series, initialResults, onClo
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  const _currentLinkId = series.hardcoverLink?.id
   const initialResultsCount = initialResults?.length ?? 0
 
   useEffect(() => {

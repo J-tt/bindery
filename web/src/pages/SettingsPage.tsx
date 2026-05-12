@@ -3400,7 +3400,7 @@ function CalibreSection({
   // button can enable/disable without the user having to click Test
   // first. Re-probes whenever mode, url, or api key changes.
   const pluginURL = settings['calibre.plugin_url'] ?? ''
-  const _pluginKey = settings['calibre.plugin_api_key'] ?? ''
+  const pluginKey = settings['calibre.plugin_api_key'] ?? ''
   useEffect(() => {
     if (mode !== 'plugin' || !pluginURL) {
       setBridgeReachable(null)
@@ -3411,7 +3411,7 @@ function CalibreSection({
       .then(() => { if (!cancelled) setBridgeReachable(true) })
       .catch(() => { if (!cancelled) setBridgeReachable(false) })
     return () => { cancelled = true }
-  }, [mode, pluginURL])
+  }, [mode, pluginURL, pluginKey])
 
   // Poll while an import is running.
   useEffect(() => {

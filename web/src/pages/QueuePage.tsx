@@ -76,6 +76,17 @@ export default function QueuePage() {
     importBlocked: 'Import Blocked',
   }
 
+  const formatRelative = (iso: string) => {
+    const diff = Date.now() - new Date(iso).getTime()
+    const secs = Math.floor(diff / 1000)
+    if (secs < 60) return 'just now'
+    const mins = Math.floor(secs / 60)
+    if (mins < 60) return `${mins}m ago`
+    const hrs = Math.floor(mins / 60)
+    if (hrs < 24) return `${hrs}h ago`
+    return `${Math.floor(hrs / 24)}d ago`
+  }
+
   const formatSize = (bytes: number) => {
     if (bytes > 1073741824) return `${(bytes / 1073741824).toFixed(1)} GB`
     if (bytes > 1048576) return `${(bytes / 1048576).toFixed(1)} MB`
@@ -113,6 +124,12 @@ export default function QueuePage() {
                       )}
                       {item.protocol && (
                         <span className="text-slate-500 dark:text-zinc-600">{item.protocol}</span>
+                      )}
+                      {item.addedAt && (
+                        <span className="text-slate-500 dark:text-zinc-600">{formatRelative(item.addedAt)}</span>
+                      )}
+                      {item.importRetryCount != null && item.importRetryCount > 0 && (
+                        <span className="text-slate-500 dark:text-zinc-600">attempt {item.importRetryCount} of 3</span>
                       )}
                     </div>
                     {item.status === 'importBlocked' && !item.errorMessage && (
