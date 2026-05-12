@@ -790,7 +790,7 @@ func (h *BookHandler) MapMetadata(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, updated)
 }
 
-func preserveBookStateForMetadataMap(book *models.Book, target *models.Book) {
+func preserveBookStateForMetadataMap(book, target *models.Book) {
 	id := book.ID
 	authorID := book.AuthorID
 	monitored := book.Monitored

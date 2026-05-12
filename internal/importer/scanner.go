@@ -698,7 +698,6 @@ func resolveTransmissionContentPath(t transmission.Torrent) (string, bool) {
 	return "", false
 }
 
-
 // resolveQbitContentPath returns the on-disk content path for a completed torrent.
 //
 // qBittorrent ≥ 4.1.x populates content_path with the authoritative on-disk path,

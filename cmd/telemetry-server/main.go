@@ -832,10 +832,10 @@ func renderMonthlyChart(points []statsBucket) string {
 	if len(points) == 0 {
 		return `<p class="empty">No data yet.</p>`
 	}
-	max := 0
+	maxCount := 0
 	for _, p := range points {
-		if p.Count > max {
-			max = p.Count
+		if p.Count > maxCount {
+			maxCount = p.Count
 		}
 	}
 	const w, h, gap = 600, 80, 4
@@ -847,8 +847,8 @@ func renderMonthlyChart(points []statsBucket) string {
 	fmt.Fprintf(&sb, `<svg class="sparkline" viewBox="0 0 %d %d" preserveAspectRatio="none" role="img" aria-label="New installs per month over the last 12 months">`, w, h)
 	for i, p := range points {
 		barH := 0
-		if max > 0 {
-			barH = p.Count * h / max
+		if maxCount > 0 {
+			barH = p.Count * h / maxCount
 		}
 		if barH < 1 && p.Count > 0 {
 			barH = 1

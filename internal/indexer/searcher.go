@@ -365,7 +365,16 @@ func filterRelevant(results []newznab.SearchResult, title, author string, aliase
 			titleOK := len(fullKws) == 0 ||
 				ContainsPhrase(normBookTitle, fullKws) ||
 				(len(primaryKws) > 0 && !sameKws(primaryKws, fullKws) && ContainsPhrase(normBookTitle, primaryKws))
-			if titleOK && structuredAuthorMatches(r.Author, author, aliases) {
+			authorOK := structuredAuthorMatches(r.Author, author, aliases)
+			slog.Debug("indexer structured metadata",
+				"release", r.Title,
+				"indexer", r.IndexerName,
+				"attr_author", r.Author,
+				"attr_title", r.BookTitle,
+				"title_match", titleOK,
+				"author_match", authorOK,
+			)
+			if titleOK && authorOK {
 				filtered = append(filtered, r)
 			}
 			continue

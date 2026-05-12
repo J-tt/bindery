@@ -286,14 +286,15 @@ func recordToBook(rec marcRecord) *models.Book {
 func stripISBNQualifier(s string) string {
 	var b strings.Builder
 	for _, r := range s {
-		if r >= '0' && r <= '9' {
+		switch {
+		case r >= '0' && r <= '9':
 			b.WriteRune(r)
-		} else if r == 'X' || r == 'x' {
+		case r == 'X' || r == 'x':
 			// ISBN-10 check digit can be 'X' (value 10).
 			b.WriteRune('X')
-		} else if b.Len() > 0 && (r == ' ' || r == '(' || r == ',') {
+		case b.Len() > 0 && (r == ' ' || r == '(' || r == ','):
 			// Stop at the first delimiter after digits — qualifier text follows.
-			break
+			return b.String()
 		}
 	}
 	return b.String()
