@@ -197,6 +197,19 @@ func migrate(database *sql.DB) error {
 			}
 		}
 
+		// Some migrations are no-ops when the schema change was already applied
+		// by a prior (differently-numbered) migration in a local fork. Skip the
+		// SQL but still record the version so the runner doesn't retry it.
+		if skip, err := migrationAlreadyApplied(database, entry.Name()); err != nil {
+			return fmt.Errorf("migration %d pre-check: %w", v, err)
+		} else if skip {
+			if _, err := database.Exec("INSERT INTO schema_migrations (version) VALUES (?)", v); err != nil {
+				return fmt.Errorf("record migration %d: %w", v, err)
+			}
+			slog.Info("skipped migration (schema already up to date)", "version", v, "file", entry.Name())
+			continue
+		}
+
 		content, err := migrationsFS.ReadFile("migrations/" + entry.Name())
 		if err != nil {
 			return fmt.Errorf("read migration %s: %w", entry.Name(), err)
@@ -236,6 +249,27 @@ func migrate(database *sql.DB) error {
 	}
 
 	return nil
+}
+
+// migrationAlreadyApplied returns true when a migration's DDL would fail
+// because the schema change was already applied by a prior (differently-numbered)
+// migration in a local fork. The SQL is skipped but the version is still recorded.
+func migrationAlreadyApplied(db *sql.DB, filename string) (bool, error) {
+	switch filename {
+	case "039_author_audiobook_root_folder.sql":
+		return columnExists(db, "authors", "audiobook_root_folder_id")
+	}
+	return false, nil
+}
+
+// columnExists reports whether table has a column named column.
+func columnExists(db *sql.DB, table, column string) (bool, error) {
+	rows, err := db.Query("SELECT name FROM pragma_table_info(?) WHERE name = ?", table, column)
+	if err != nil {
+		return false, err
+	}
+	defer rows.Close()
+	return rows.Next(), rows.Err()
 }
 
 // multiuserPreFlight checks that the database is in a consistent state before
