@@ -25,6 +25,8 @@ type Book struct {
 	Genres                []string   `json:"genres"`
 	AverageRating         float64    `json:"averageRating"`
 	RatingsCount          int        `json:"ratingsCount"`
+	EditionCount          int        `json:"-"`
+	ISBNs                 []string   `json:"-"`
 	Monitored             bool       `json:"monitored"`
 	Status                string     `json:"status"`
 	AnyEditionOK          bool       `json:"anyEditionOk"`

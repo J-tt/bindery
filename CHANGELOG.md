@@ -6,6 +6,203 @@ All notable changes to Bindery are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [v1.9.1] — 2026-05-11
+
+### Fixed
+
+- **Author list no longer hides authors after user re-creation** — The "author already exists" duplicate check was global-scoped while the author list filtered by `owner_user_id`. Authors whose `owner_user_id` pointed to a deleted or re-created user were permanently invisible in the list but blocked re-addition. The check is now user-scoped so it agrees with what the list shows. A new migration (039) resets orphaned `owner_user_id` values to NULL so those authors become visible to all users immediately on upgrade.
+
+- **Canonical author name search now scoped to current user** — The name-deduplication path during author creation previously searched the global author pool, which could conflict with authors belonging to other users in multi-user setups.
+
+## [v1.9.0] — 2026-05-11
+
+### Added
+
+- **Book metadata can be remapped from the Book Detail page** (#590) — Books with ABS or stale metadata now show an **Improve metadata** action that searches upstream providers or accepts a direct provider ID. New `POST /api/v1/book/{id}/map` applies the upstream title, cover, language, ratings, genres, and provider ID while preserving local status, files, media type, ASIN, narrator, selected edition, and exclusion state.
+
+- **Calibre-Web-Automated (CWA) ingest** (#417) — A new
+  **Settings → General → Calibre-Web-Automated (CWA)** field configures a
+  shared ingest folder. When set, every successful ebook import is also
+  copied into that folder so a sibling
+  [CWA](https://github.com/crocodilestick/Calibre-Web-Automated) container
+  can auto-ingest it. Bindery keeps its own copy and never moves the file,
+  so a misconfigured CWA can't take bindery's library with it. No Calibre
+  runtime dependency is added to the bindery container — only the file
+  drop is in scope. Audiobook imports are unaffected since CWA is built
+  around ebook libraries.
+
+- **Prowlarr search timeout is now configurable** (#576) — The Prowlarr indexer
+  search timeout has been raised from 15 s to 60 s and can be adjusted in
+  **Settings → Indexers → Prowlarr → Search timeout**. Slow usenet indexers
+  no longer time out on the first query.
+
+### Fixed
+
+**Importer / download clients**
+
+- **qBittorrent SavePath fallback caused incorrect imports** (#574) — When
+  qBittorrent's `content_path` field was absent or empty, the importer
+  fell back to `SavePath` (the shared download root) and could match
+  unrelated files or walk directories it should not touch. The importer
+  now uses `content_path` exclusively and aborts cleanly when it is missing.
+- **Default import mode changed from `move` to `hardlink`/`copy`** (#577) —
+  The out-of-box default was `move`, which silently broke torrent/usenet
+  seeding immediately after import. Bindery now defaults to `hardlink` when
+  source and destination are on the same filesystem (free, preserves seeding)
+  or `copy` when they are cross-device. **Upgrade note**: migration 038
+  clears the implicit `move` default written at install time; users who
+  explicitly set an import mode in Settings are not affected.
+- **Downloads stuck in `importFailed` are now retried automatically** (#578)
+  — Previously, a download that failed during import was permanently orphaned.
+  Bindery now retries up to three times before leaving it for manual
+  intervention. Retry count is persisted via migration 037.
+- **CheckDownloads now polls all enabled download clients** (#572) — Only
+  the highest-priority client was polled for status updates. Secondary
+  clients (e.g. a second qBittorrent instance or a fallover) were silently
+  ignored. All enabled clients are now iterated in priority order.
+- **Bulk-grab torrent dedup race condition fixed** (#573) — Grabbing multiple
+  releases simultaneously could assign the same `torrent_id` to two
+  downloads, breaking per-download tracking. `AddTorrent` is now serialised.
+
+**Auth**
+
+- **API key authentication now grants admin role** (#582) — Requests
+  authenticated via API key successfully verified the key but did not set
+  the admin role in the request context, causing `RequireAdmin`-protected
+  endpoints to return 403. The role is now correctly propagated.
+- **Auth endpoints no longer require `X-Requested-With` header** (#575) —
+  The login endpoint enforced `X-Requested-With: bindery-ui`, blocking
+  non-browser clients (curl, mobile apps, integrations). Auth endpoints are
+  now exempt; programmatic clients should use API key auth instead of cookie
+  sessions.
+
+**AudioBookShelf (ABS)**
+
+- **ABS library is rescanned after audiobook import** (#581) — Bindery now
+  triggers `POST /api/v2/libraries/:id/scan` after a successful audiobook
+  import so the file appears in ABS immediately rather than on its next
+  scheduled scan.
+- **Move-mode audiobook imports no longer appear MISSING in ABS** (#583) —
+  The ABS rescan after import updates ABS's path knowledge, resolving the
+  MISSING status that appeared when the import moved the file.
+- **History events include format for dual-format books** (#584) — `bookImported`
+  events for books with `media_type='both'` now record which format (ebook
+  or audiobook) was imported, making the History page unambiguous.
+
+**Metadata**
+
+- **ISBN lookups now canonicalise provider-native matches** (#590) — ISBN
+  searches normalise ISBN input, consult configured metadata enrichers, and
+  conservatively relink provider-native results back to canonical OpenLibrary
+  works when the author/title evidence is unambiguous. This improves
+  translated and edition-specific matches while avoiding plausible
+  wrong-title fallbacks.
+- **Audiobook ASIN enrichment can relink to upstream metadata** (#590) —
+  Enriching an audiobook now uses Audnex ASIN metadata to find a safe
+  canonical upstream match, so ABS/imported audiobook rows can gain better
+  titles, covers, language, search metadata, and OpenLibrary IDs while
+  keeping audiobook-specific fields intact.
+- **ABS imports no longer trust stale secondary-author aliases or provenance**
+  (#590) — Existing ABS author provenance and aliases are reused only when
+  they still match the local author, preventing secondary-author names from
+  corrupting future imports.
+- **Direct book adds preserve series links** (#590) — Adding a book directly
+  no longer drops existing series associations during metadata
+  canonicalization.
+- **Google Books provider settings are respected at startup** (#590) —
+  Bindery now prefers the UI-managed Google Books API key, keeps legacy
+  setting fallback for existing installs, and treats a deliberately cleared
+  UI setting as disabled.
+
+## [v1.8.1] — 2026-05-09
+
+### Fixed
+
+- **DNB search results couldn't be added to the wanted list** (#545, #561)
+  — DNB bib records expose author *names* but not author IDs, so every
+  result had the Add button greyed out with a misleading "try a more
+  specific search" hint. The fix extracts ISBN(s) from MARC 020 in DNB
+  records and adds a cross-provider author resolver: when a search result
+  lacks a foreign author ID, the backend looks up the ISBN in OpenLibrary
+  and rewrites the request to use OL's canonical author/book identity.
+  Books that resolve end up under their OpenLibrary record (with OL's
+  title and metadata); books with no OL match return a clear "add the
+  author manually first" error instead of silently failing.
+- **Telemetry chart hides the freshly cut release** (#546) — `/stats`
+  truncated the version chart to top-8 by count, so a brand-new release
+  with one or two installs disappeared into `(other)` until it
+  organically out-ranked older versions (sometimes weeks). The chart now
+  pins the configured `LATEST_VERSION` into the visible region and
+  annotates it `(latest)` so newly cut releases are immediately visible.
+- **Transmission retry path silently used corrupted bodies** (#558) — On
+  retry against the Transmission RPC endpoint, `io.ReadAll` errors were
+  dropped and an empty / partial slice was used as the response body.
+  Errors now propagate via `fmt.Errorf("transmission: read retry body:
+  %w", err)` so a torn body fails loudly instead of producing
+  garbage-decoded torrent state.
+- **`refreshBookStatus` could zero a user's file paths on transient DB
+  errors** (#558) — `Scan` errors on the `book_files` lookup were dropped
+  via `_ = QueryRowContext(...).Scan(&path)`, so any error other than
+  `sql.ErrNoRows` (lock timeout, corruption, connection drop) wrote `""`
+  back to `book.EbookFilePath` / `book.AudiobookFilePath`. Now distinguishes
+  `sql.ErrNoRows` (legitimate empty path) from real failures via
+  `errors.Is`, returning the wrapped error in the latter case.
+- **Non-ASCII filenames mangled in Content-Disposition** (#558) — Library
+  file downloads now emit RFC 5987 `filename*=UTF-8''<percent-encoded>`
+  alongside the legacy `filename="..."` parameter, so titles with German /
+  Cyrillic / CJK characters land on disk with the correct name instead of
+  being rewritten to a quoted-printable mojibake form.
+- **Frontend timer leaks on unmount** (#556) — `AuthSettings`'s
+  copy-to-clipboard "copied" badge and `DiscoverPage`'s toast clear-out
+  used bare `setTimeout` calls that fired against unmounted components,
+  producing React's "can't update state on unmounted component" warning.
+  Both are now `useEffect`-driven with `clearTimeout` cleanup.
+
+### Changed
+
+- **Log persistence shutdown is now graceful** (#558) — `LogHandler.Stop()`
+  closes the in-memory channel and waits (bounded by a 5s context) for
+  the drain goroutine to flush any in-flight log entries before the
+  process exits. Wired into `cmd/bindery/main.go` as a deferred call.
+  Previously the goroutine leaked for the lifetime of the process and
+  any buffered entries were lost on shutdown. Note: the `defer` only
+  fires on clean main-return paths, not on signal-driven termination —
+  full benefit requires #559 (signal-based graceful shutdown), tracked
+  separately.
+- **Several previously-dropped errors now surface in the log stream**
+  (#558) — `slog.Warn` calls were added to `internal/api/imageproxy.go`
+  (response write), `internal/api/auth_oidc.go` (provider parse),
+  `internal/api/authors.go` (batch dedup updates),
+  `internal/db/recommendations.go` (genres marshal), and
+  `internal/prowlarr/syncer.go` (`SetLastSyncAt` after a successful
+  sync). Behaviour is unchanged; visibility is not.
+
+### Security
+
+- **API key compared with `subtle.ConstantTimeCompare` instead of `==`**
+  (#555) — Both the main HTTP middleware (`internal/auth/middleware.go`)
+  and the OPDS auth path (`internal/api/opds_auth.go`) used variable-time
+  string equality on the API key, leaking enough timing information to
+  enable a remote byte-by-byte recovery attack against a sufficiently
+  determined attacker. Both sites now use `subtle.ConstantTimeCompare`,
+  with the existing empty-key short-circuit preserved so empty submissions
+  don't telegraph the real key's length.
+- **GitHub Actions in `ping-server.yml` pinned to commit SHAs** (#555) —
+  Five actions (`actions/checkout`, `docker/login-action`,
+  `docker/setup-qemu-action`, `docker/setup-buildx-action`,
+  `docker/build-push-action`) were pinned by tag, leaving the workflow
+  vulnerable to a tag-rotation supply-chain attack. All are now pinned to
+  the same commit SHAs already in use in `ci.yml`.
+- **`cmd/telemetry-server/Dockerfile` base images pinned by digest**
+  (#555) — `golang:1.25-alpine` and `alpine:3.21` are now pinned to their
+  content-addressable digests so a tag rotation can't silently swap the
+  base image during the next ping-server build.
+- **Dedicated `*http.Client` for telemetry pings** (#555) — Replaces
+  `http.DefaultClient` for the once-per-day telemetry ping path with a
+  package-local client carrying its own timeout. The 10s context deadline
+  was already in place, but the dedicated client guards against unrelated
+  code mutating `DefaultClient` and reaching into the ping path.
+
 ## [v1.8.0] — 2026-05-09
 
 ### Added

@@ -2,6 +2,7 @@ package auth
 
 import (
 	"context"
+	"crypto/subtle"
 	"log/slog"
 	"net"
 	"net/http"
@@ -163,7 +164,7 @@ func Middleware(p Provider) func(http.Handler) http.Handler {
 				next.ServeHTTP(w, r)
 				return
 			}
-			if key := requestAPIKey(r); key != "" && key == p.APIKey() {
+			if key := requestAPIKey(r); key != "" && subtle.ConstantTimeCompare([]byte(key), []byte(p.APIKey())) == 1 {
 				// API key authentication is always treated as admin. Set the role
 				// so RequireAdmin-protected endpoints are accessible without a
 				// session cookie (Bug 11: misleading "admin role required" 403).

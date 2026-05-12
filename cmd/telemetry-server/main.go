@@ -369,16 +369,29 @@ type dailyBucket struct {
 	Count int
 }
 
+// versionTrendDay holds per-version active counts for one day, used in the
+// stacked version-adoption chart.
+type versionTrendDay struct {
+	Day      time.Time
+	Versions map[string]int
+	Total    int
+}
+
 // statsData is the complete aggregated telemetry view used by both the
 // auth-gated JSON API and the public HTML dashboard.
 type statsData struct {
-	Active30d int
-	Total     int
-	Versions  []statsBucket
-	OS        []statsBucket
-	Arch      []statsBucket
-	Deploy    []statsBucket
-	Daily     []dailyBucket
+	Active30d    int
+	Total        int
+	Versions     []statsBucket
+	OS           []statsBucket
+	Arch         []statsBucket
+	Deploy       []statsBucket
+	Daily        []dailyBucket
+	DailyNew     []dailyBucket     // new installs per day (first_seen), 30 days
+	Longevity    []statsBucket     // age buckets for 30d-active installs
+	Monthly      []statsBucket     // new installs per calendar month, last 12 mo
+	VersionTrend []versionTrendDay // per-day per-version active counts, 30 days
+	TopVersions  []string          // top-N versions for VersionTrend legend
 }
 
 // computeStats runs every dashboard query and returns one assembled snapshot.
@@ -461,6 +474,137 @@ func (s *server) computeStats(ctx context.Context) (*statsData, error) {
 		day := today.AddDate(0, 0, -i)
 		key := day.Format("2006-01-02")
 		d.Daily = append(d.Daily, dailyBucket{Day: day, Count: dayCount[key]})
+	}
+
+	// New installs per day (first_seen, last 30 days).
+	rowsNew, err := s.db.QueryContext(ctx,
+		`SELECT substr(first_seen, 1, 10) AS day, COUNT(*) FROM installs WHERE first_seen >= ? GROUP BY day ORDER BY day`, cutoff)
+	if err != nil {
+		return nil, err
+	}
+	defer rowsNew.Close()
+	newDayCount := make(map[string]int)
+	for rowsNew.Next() {
+		var day string
+		var count int
+		if err := rowsNew.Scan(&day, &count); err != nil {
+			return nil, err
+		}
+		newDayCount[day] = count
+	}
+	if err := rowsNew.Err(); err != nil {
+		return nil, err
+	}
+	for i := 29; i >= 0; i-- {
+		day := today.AddDate(0, 0, -i)
+		key := day.Format("2006-01-02")
+		d.DailyNew = append(d.DailyNew, dailyBucket{Day: day, Count: newDayCount[key]})
+	}
+
+	// Install longevity: bucket 30d-active installs by age (last_seen − first_seen).
+	rowsLon, err := s.db.QueryContext(ctx, `
+		SELECT
+		  CASE
+		    WHEN CAST(julianday(substr(last_seen,1,10)) - julianday(substr(first_seen,1,10)) AS INTEGER) < 7
+		         THEN '< 1 week'
+		    WHEN CAST(julianday(substr(last_seen,1,10)) - julianday(substr(first_seen,1,10)) AS INTEGER) < 30
+		         THEN '1–4 weeks'
+		    WHEN CAST(julianday(substr(last_seen,1,10)) - julianday(substr(first_seen,1,10)) AS INTEGER) < 90
+		         THEN '1–3 months'
+		    ELSE '3+ months'
+		  END AS bucket,
+		  COUNT(*) AS n
+		FROM installs WHERE last_seen >= ?
+		GROUP BY bucket`, cutoff)
+	if err != nil {
+		return nil, err
+	}
+	defer rowsLon.Close()
+	lonMap := make(map[string]int)
+	for rowsLon.Next() {
+		var bucket string
+		var count int
+		if err := rowsLon.Scan(&bucket, &count); err != nil {
+			return nil, err
+		}
+		lonMap[bucket] = count
+	}
+	if err := rowsLon.Err(); err != nil {
+		return nil, err
+	}
+	for _, label := range []string{"< 1 week", "1–4 weeks", "1–3 months", "3+ months"} {
+		if cnt, ok := lonMap[label]; ok {
+			d.Longevity = append(d.Longevity, statsBucket{Label: label, Count: cnt})
+		}
+	}
+
+	// Monthly new installs for the last 12 calendar months.
+	monthlyCutoff := time.Now().UTC().AddDate(0, -12, 0)
+	rowsMon, err := s.db.QueryContext(ctx,
+		`SELECT substr(first_seen, 1, 7) AS month, COUNT(*) FROM installs WHERE first_seen >= ? GROUP BY month ORDER BY month`,
+		monthlyCutoff)
+	if err != nil {
+		return nil, err
+	}
+	defer rowsMon.Close()
+	for rowsMon.Next() {
+		var month string
+		var count int
+		if err := rowsMon.Scan(&month, &count); err != nil {
+			return nil, err
+		}
+		label := month
+		if t, err := time.Parse("2006-01", month); err == nil {
+			label = t.Format("Jan '06")
+		}
+		d.Monthly = append(d.Monthly, statsBucket{Label: label, Count: count})
+	}
+	if err := rowsMon.Err(); err != nil {
+		return nil, err
+	}
+
+	// Top versions for the version-trend legend (max 4).
+	for i, v := range d.Versions {
+		if i >= 4 {
+			break
+		}
+		d.TopVersions = append(d.TopVersions, v.Label)
+	}
+
+	// Version mix per day for the last 30 days (stacked trend chart).
+	rowsVer, err := s.db.QueryContext(ctx,
+		`SELECT substr(last_seen, 1, 10) AS day, version, COUNT(*) FROM installs WHERE last_seen >= ? GROUP BY day, version ORDER BY day`,
+		cutoff)
+	if err != nil {
+		return nil, err
+	}
+	defer rowsVer.Close()
+	vtMap := make(map[string]map[string]int) // day -> version -> count
+	for rowsVer.Next() {
+		var day, ver string
+		var count int
+		if err := rowsVer.Scan(&day, &ver, &count); err != nil {
+			return nil, err
+		}
+		if vtMap[day] == nil {
+			vtMap[day] = make(map[string]int)
+		}
+		vtMap[day][ver] = count
+	}
+	if err := rowsVer.Err(); err != nil {
+		return nil, err
+	}
+	for i := 29; i >= 0; i-- {
+		day := today.AddDate(0, 0, -i)
+		key := day.Format("2006-01-02")
+		vd := versionTrendDay{Day: day, Versions: vtMap[key]}
+		if vd.Versions == nil {
+			vd.Versions = make(map[string]int)
+		}
+		for _, cnt := range vd.Versions {
+			vd.Total += cnt
+		}
+		d.VersionTrend = append(d.VersionTrend, vd)
 	}
 
 	return d, nil
@@ -572,11 +716,36 @@ func paletteColor(i int) string { return chartPalette[i%len(chartPalette)] }
 // renderBarChart returns inline SVG for a horizontal bar chart with a legend.
 // Each bucket gets its own colour from chartPalette so the swatch in the
 // legend column matches the bar.
-func renderBarChart(buckets []statsBucket, maxBars int) string {
+//
+// When pinLabel is non-empty and matches a bucket that would otherwise fall
+// into the "(other)" tail, the pinned bucket is swapped into the last visible
+// slot so a freshly cut release stays visible before it organically reaches
+// top-N. The pinned row's legend is suffixed with " (latest)". Buckets with
+// pinLabel already in the visible region are annotated but not reordered.
+func renderBarChart(buckets []statsBucket, maxBars int, pinLabel string) string {
 	if len(buckets) == 0 {
 		return `<p class="empty">No data yet.</p>`
 	}
 	if maxBars > 0 && len(buckets) > maxBars {
+		// Copy so we can mutate without surprising the caller (other charts
+		// reuse the same slices indirectly via stable-sort in handleStatsPage).
+		work := make([]statsBucket, len(buckets))
+		copy(work, buckets)
+		buckets = work
+
+		if pinLabel != "" {
+			pinIdx := -1
+			for i := maxBars; i < len(buckets); i++ {
+				if buckets[i].Label == pinLabel {
+					pinIdx = i
+					break
+				}
+			}
+			if pinIdx >= 0 {
+				buckets[maxBars-1], buckets[pinIdx] = buckets[pinIdx], buckets[maxBars-1]
+			}
+		}
+
 		// Collapse the long tail into an "(other)" bucket so the chart
 		// doesn't grow unbounded with every release sha.
 		head := buckets[:maxBars]
@@ -603,11 +772,15 @@ func renderBarChart(buckets []statsBucket, maxBars int) string {
 		if maxCount > 0 {
 			pct = b.Count * 100 / maxCount
 		}
+		label := b.Label
+		if pinLabel != "" && b.Label == pinLabel {
+			label = b.Label + " (latest)"
+		}
 		fmt.Fprintf(&sb,
 			`<tr><td class="legend-cell"><span class="swatch" style="background:%s"></span>%s</td>`+
 				`<td class="bar-cell"><div class="bar" style="width:%d%%;background:%s"></div></td>`+
 				`<td class="count-cell">%d</td></tr>`,
-			colour, html.EscapeString(b.Label), pct, colour, b.Count)
+			colour, html.EscapeString(label), pct, colour, b.Count)
 	}
 	sb.WriteString(`</table></div>`)
 	return sb.String()
@@ -650,6 +823,113 @@ func renderSparkline(daily []dailyBucket) string {
 	first := daily[0].Day.Format("Jan 2")
 	last := daily[len(daily)-1].Day.Format("Jan 2")
 	fmt.Fprintf(&sb, `<div class="sparkline-axis"><span>%s</span><span>%s</span></div>`, first, last)
+	return sb.String()
+}
+
+// renderMonthlyChart renders a bar sparkline for monthly new-install counts.
+// Each bar is labelled via its title attribute; axis labels show first/last month.
+func renderMonthlyChart(points []statsBucket) string {
+	if len(points) == 0 {
+		return `<p class="empty">No data yet.</p>`
+	}
+	max := 0
+	for _, p := range points {
+		if p.Count > max {
+			max = p.Count
+		}
+	}
+	const w, h, gap = 600, 80, 4
+	barW := (w - gap*(len(points)-1)) / len(points)
+	if barW < 1 {
+		barW = 1
+	}
+	var sb strings.Builder
+	fmt.Fprintf(&sb, `<svg class="sparkline" viewBox="0 0 %d %d" preserveAspectRatio="none" role="img" aria-label="New installs per month over the last 12 months">`, w, h)
+	for i, p := range points {
+		barH := 0
+		if max > 0 {
+			barH = p.Count * h / max
+		}
+		if barH < 1 && p.Count > 0 {
+			barH = 1
+		}
+		x := i * (barW + gap)
+		y := h - barH
+		fmt.Fprintf(&sb, `<rect x="%d" y="%d" width="%d" height="%d" fill="#3b82f6"><title>%s: %d new</title></rect>`,
+			x, y, barW, barH, html.EscapeString(p.Label), p.Count)
+	}
+	sb.WriteString(`</svg>`)
+	if len(points) >= 2 {
+		fmt.Fprintf(&sb, `<div class="sparkline-axis"><span>%s</span><span>%s</span></div>`,
+			html.EscapeString(points[0].Label), html.EscapeString(points[len(points)-1].Label))
+	}
+	return sb.String()
+}
+
+// renderVersionTrend renders a stacked-proportion day chart: each day's bar is
+// divided by version share, so you can see version N-1 declining as N rises.
+// topVersions controls colour assignment; any version not in the list is
+// collapsed into an "(other)" dark-grey segment.
+func renderVersionTrend(days []versionTrendDay, topVersions []string) string {
+	if len(days) == 0 {
+		return `<p class="empty">No data yet.</p>`
+	}
+	const w, h, gap = 600, 80, 2
+	barW := (w - gap*(len(days)-1)) / len(days)
+	if barW < 1 {
+		barW = 1
+	}
+	var sb strings.Builder
+	fmt.Fprintf(&sb, `<svg class="sparkline" viewBox="0 0 %d %d" preserveAspectRatio="none" role="img" aria-label="Version distribution over the last 30 days">`, w, h)
+	for i, d := range days {
+		if d.Total == 0 {
+			continue
+		}
+		x := i * (barW + gap)
+		y := 0
+		for vi, ver := range topVersions {
+			cnt := d.Versions[ver]
+			if cnt == 0 {
+				continue
+			}
+			segH := cnt * h / d.Total
+			if segH < 1 {
+				segH = 1
+			}
+			fmt.Fprintf(&sb,
+				`<rect x="%d" y="%d" width="%d" height="%d" fill="%s"><title>%s %s: %d</title></rect>`,
+				x, y, barW, segH, paletteColor(vi), d.Day.Format("Jan 2"), html.EscapeString(ver), cnt)
+			y += segH
+		}
+		// Remaining versions collapsed into "(other)".
+		other := d.Total
+		for _, ver := range topVersions {
+			other -= d.Versions[ver]
+		}
+		if other > 0 {
+			segH := other * h / d.Total
+			if segH < 1 {
+				segH = 1
+			}
+			fmt.Fprintf(&sb,
+				`<rect x="%d" y="%d" width="%d" height="%d" fill="#475569"><title>%s (other): %d</title></rect>`,
+				x, y, barW, segH, d.Day.Format("Jan 2"), other)
+		}
+	}
+	sb.WriteString(`</svg>`)
+	first := days[0].Day.Format("Jan 2")
+	last := days[len(days)-1].Day.Format("Jan 2")
+	fmt.Fprintf(&sb, `<div class="sparkline-axis"><span>%s</span><span>%s</span></div>`, first, last)
+	// Colour legend.
+	sb.WriteString(`<div class="trend-legend">`)
+	for vi, ver := range topVersions {
+		fmt.Fprintf(&sb, `<span class="trend-key"><span class="swatch" style="background:%s"></span>%s</span>`,
+			paletteColor(vi), html.EscapeString(ver))
+	}
+	if len(topVersions) > 0 {
+		sb.WriteString(`<span class="trend-key"><span class="swatch" style="background:#475569"></span>(other)</span>`)
+	}
+	sb.WriteString(`</div>`)
 	return sb.String()
 }
 
@@ -730,6 +1010,8 @@ func (s *server) handleStatsPage(w http.ResponseWriter, r *http.Request) {
     color: #94a3b8; font-size: .75rem; margin-top: .35rem;
   }
   .empty { color: #94a3b8; font-size: .85rem; padding: .25rem 0; }
+  .trend-legend { display: flex; flex-wrap: wrap; gap: .5rem 1.25rem; margin-top: .75rem; font-size: .8rem; color: #cbd5e1; }
+  .trend-key { display: flex; align-items: center; gap: .4rem; }
   footer { margin-top: 3rem; color: #64748b; font-size: .75rem; text-align: center; }
 </style>
 </head>
@@ -771,6 +1053,26 @@ func (s *server) handleStatsPage(w http.ResponseWriter, r *http.Request) {
     <div class="chart">%s</div>
   </section>
 
+  <section>
+    <h2>New installs per day (last 30 days)</h2>
+    <div class="chart">%s</div>
+  </section>
+
+  <section>
+    <h2>New installs per month (last 12 months)</h2>
+    <div class="chart">%s</div>
+  </section>
+
+  <section>
+    <h2>Install longevity (active installs by age)</h2>
+    %s
+  </section>
+
+  <section>
+    <h2>Version mix (last 30 days)</h2>
+    <div class="chart">%s</div>
+  </section>
+
   <footer>
     Generated %s. Data refreshes on every page load.
   </footer>
@@ -778,11 +1080,15 @@ func (s *server) handleStatsPage(w http.ResponseWriter, r *http.Request) {
 </body>
 </html>`,
 		d.Active30d, d.Total,
-		renderBarChart(d.Versions, 8),
-		renderBarChart(d.OS, 0),
-		renderBarChart(d.Arch, 0),
-		renderBarChart(d.Deploy, 0),
+		renderBarChart(d.Versions, 8, normalizeVersion(s.latestVersion)),
+		renderBarChart(d.OS, 0, ""),
+		renderBarChart(d.Arch, 0, ""),
+		renderBarChart(d.Deploy, 0, ""),
 		renderSparkline(d.Daily),
+		renderSparkline(d.DailyNew),
+		renderMonthlyChart(d.Monthly),
+		renderBarChart(d.Longevity, 0, ""),
+		renderVersionTrend(d.VersionTrend, d.TopVersions),
 		time.Now().UTC().Format("2006-01-02 15:04 MST"),
 	); err != nil {
 		slog.Warn("stats: write response", "error", err)

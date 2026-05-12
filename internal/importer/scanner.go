@@ -231,6 +231,32 @@ func (s *Scanner) importMode(ctx context.Context, src, dst string) string {
 	return "copy"
 }
 
+// pushToCWA copies the just-imported file into the directory watched by a
+// sibling Calibre-Web-Automated container, when the cwa.ingest_path setting
+// is configured. CWA's auto-ingest deletes whatever lands in that folder
+// after processing, so we copy rather than move — bindery's own library
+// stays intact regardless. Failures are logged and swallowed; CWA sync is
+// best-effort and must never roll back an otherwise-good import.
+//
+// Only fires for ebook imports — CWA is built around ebook libraries
+// (Calibre under the hood); audiobook handoff is a separate problem.
+func (s *Scanner) pushToCWA(ctx context.Context, srcPath string) {
+	if s.settings == nil || srcPath == "" {
+		return
+	}
+	setting, err := s.settings.Get(ctx, "cwa.ingest_path")
+	if err != nil || setting == nil || setting.Value == "" {
+		return
+	}
+	ingestDir := setting.Value
+	dst := filepath.Join(ingestDir, filepath.Base(srcPath))
+	if err := CopyFileCtx(ctx, srcPath, dst); err != nil {
+		slog.Warn("cwa: copy to ingest folder failed", "src", srcPath, "dst", dst, "error", err)
+		return
+	}
+	slog.Info("cwa: file copied to ingest folder", "src", srcPath, "dst", dst)
+}
+
 // pushToCalibre mirrors a just-imported book into Calibre via calibredb add.
 // Failures are logged and swallowed — Calibre sync is best-effort and must
 // never roll back an otherwise-good Bindery import.
@@ -672,6 +698,7 @@ func resolveTransmissionContentPath(t transmission.Torrent) (string, bool) {
 	return "", false
 }
 
+
 // resolveQbitContentPath returns the on-disk content path for a completed torrent.
 //
 // qBittorrent ≥ 4.1.x populates content_path with the authoritative on-disk path,
@@ -908,6 +935,7 @@ func (s *Scanner) tryImportInternal(ctx context.Context, dl *models.Download, do
 		slog.Info("book imported", "title", book.Title, "path", destPath)
 
 		s.pushToCalibre(ctx, book, author, destPath)
+		s.pushToCWA(ctx, destPath)
 
 		s.createHistoryEvent(ctx, models.HistoryEventBookImported, dl.Title, dl.BookID, map[string]string{"path": destPath, "format": models.MediaTypeEbook})
 	}

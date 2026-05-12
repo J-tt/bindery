@@ -49,6 +49,11 @@ var (
 	date    = "unknown"
 )
 
+const (
+	settingGoogleBooksAPIKey       = "googlebooks.apiKey"
+	legacySettingGoogleBooksAPIKey = "google_books_api_key"
+)
+
 func main() {
 	// Healthcheck subcommand — used by the Docker HEALTHCHECK directive.
 	// Hits the local /api/v1/health endpoint and exits 0 on 200, else 1.
@@ -109,6 +114,13 @@ func main() {
 	logRepo := db.NewLogRepo(database)
 	logDBHandler := db.NewLogSlogHandler(logRepo, level)
 	slog.SetDefault(slog.New(logbuf.NewTee(logbuf.NewTee(stdoutHandler, ring), logDBHandler)))
+	defer func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := logDBHandler.Stop(shutdownCtx); err != nil {
+			slog.Warn("log handler shutdown timed out", "error", err)
+		}
+	}()
 
 	authorRepo := db.NewAuthorRepo(database)
 	authorAliasRepo := db.NewAuthorAliasRepo(database)
@@ -185,8 +197,8 @@ func main() {
 	}
 
 	var enrichers []metadata.Provider
-	if setting, _ := settingsRepo.Get(context.Background(), "google_books_api_key"); setting != nil && setting.Value != "" {
-		enrichers = append(enrichers, googlebooks.New(setting.Value))
+	if apiKey := googleBooksAPIKey(context.Background(), settingsRepo); apiKey != "" {
+		enrichers = append(enrichers, googlebooks.New(apiKey))
 		slog.Info("google books enrichment enabled")
 	}
 	hcClient := hardcover.New().WithTokenSource(func(ctx context.Context) string {
@@ -603,6 +615,7 @@ func main() {
 		r.Delete("/book/{id}/file", bookHandler.DeleteFile)
 		r.Put("/book/{id}/exclude", bookHandler.ToggleExcluded)
 		r.Post("/book/{id}/rebind", bookHandler.Rebind)
+		r.Post("/book/{id}/map", bookHandler.MapMetadata)
 		r.Post("/book/{id}/enrich-audiobook", bookHandler.EnrichAudiobook)
 		r.Post("/book/{id}/search", indexerHandler.SearchBook)
 		r.Get("/book/{id}/file", fileHandler.Download)
@@ -897,6 +910,19 @@ func main() {
 		slog.Error("server failed", "error", err)
 		os.Exit(1)
 	}
+}
+
+func googleBooksAPIKey(ctx context.Context, settings *db.SettingsRepo) string {
+	if settings == nil {
+		return ""
+	}
+	if s, _ := settings.Get(ctx, settingGoogleBooksAPIKey); s != nil {
+		return strings.TrimSpace(s.Value)
+	}
+	if s, _ := settings.Get(ctx, legacySettingGoogleBooksAPIKey); s != nil {
+		return strings.TrimSpace(s.Value)
+	}
+	return ""
 }
 
 func defaultNamingTemplate(settings *db.SettingsRepo) string {

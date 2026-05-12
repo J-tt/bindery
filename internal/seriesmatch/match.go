@@ -10,6 +10,7 @@ import (
 
 	fuzzy "github.com/creditx/go-fuzzywuzzy"
 	"github.com/vavallee/bindery/internal/indexer"
+	"golang.org/x/text/unicode/norm"
 )
 
 func SamePosition(a, b string) bool {
@@ -56,15 +57,25 @@ func TitleScore(a, b string) int {
 		return 0
 	}
 	return max(
-		fuzzy.TokenSetRatio(cleanA, cleanB),
-		fuzzy.TokenSortRatio(cleanA, cleanB),
-		fuzzy.Ratio(cleanA, cleanB),
-		fuzzy.PartialRatio(cleanA, cleanB),
+		safeFuzzyScore(func(a, b string) int { return fuzzy.TokenSetRatio(a, b) }, cleanA, cleanB),
+		safeFuzzyScore(func(a, b string) int { return fuzzy.TokenSortRatio(a, b) }, cleanA, cleanB),
+		safeFuzzyScore(fuzzy.Ratio, cleanA, cleanB),
+		safeFuzzyScore(fuzzy.PartialRatio, cleanA, cleanB),
 	)
 }
 
+func safeFuzzyScore(score func(string, string) int, a, b string) (value int) {
+	defer func() {
+		if recover() != nil {
+			value = 0
+		}
+	}()
+	return score(a, b)
+}
+
 func CleanTitle(title string) string {
-	title = strings.ToLower(strings.TrimSpace(title))
+	title = norm.NFC.String(strings.TrimSpace(title))
+	title = strings.ToLower(title)
 	if title == "" {
 		return ""
 	}
